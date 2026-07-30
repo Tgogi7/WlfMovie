@@ -42,4 +42,52 @@
         <item>#27856A</item>
         <item>#FF0090</item>
     </array>
+        <!-- ===== Paleta WlfMovie - Morado neón fucsia ===== -->
+
+    <!-- Fondos -->
+    <color name="wlf_bg_dark">#0F0518</color>
+    <color name="wlf_bg_player">#000000</color>
+    <color name="wlf_bg_card">#1A0B2E</color>
+    <color name="wlf_bg_card_light">#2A1648</color>
+    <color name="wlf_overlay">#99000000</color>
+    <color name="wlf_overlay_light">#66000000</color>
+
+    <!-- Morados primarios -->
+    <color name="wlf_purple_primary">#7C3AED</color>
+    <color name="wlf_purple_light">#A78BFA</color>
+    <color name="wlf_purple_dark">#5B21B6</color>
+    <color name="wlf_purple_darker">#3B0764</color>
+
+    <!-- Fucsia neón -->
+    <color name="wlf_fuchsia_neon">#E879F9</color>
+    <color name="wlf_fuchsia_glow">#F0ABFC</color>
+    <color name="wlf_fuchsia_dark">#A21CAF</color>
+
+    <!-- Acentos / gradientes -->
+    <color name="wlf_accent_purple_to_fuchsia_start">#7C3AED</color>
+    <color name="wlf_accent_purple_to_fuchsia_end">#E879F9</color>
+
+    <!-- Texto -->
+    <color name="wlf_text_primary">#FFFFFF</color>
+    <color name="wlf_text_secondary">#B8B8D1</color>
+    <color name="wlf_text_muted">#6B6B85</color>
+
+    <!-- Seekbar -->
+    <color name="wlf_seekbar_track">#3D3D5C</color>
+    <color name="wlf_seekbar_buffered">#7C3AED</color>
+    <color name="wlf_seekbar_progress">#E879F9</color>
+    <color name="wlf_seekbar_thumb">#F0ABFC</color>
+
+    <!-- Botones -->
+    <color name="wlf_button_bg">#331A0B2E</color>
+    <color name="wlf_button_bg_hover">#4D2A1648</color>
+    <color name="wlf_button_bg_pressed">#662A1648</color>
+
+    <!-- Glow effects -->
+    <color name="wlf_glow_fuchsia">#66E879F9</color>
+    <color name="wlf_glow_purple">#667C3AED</color>
+
+    <!-- Spinner -->
+    <color name="wlf_spinner_start">#7C3AED</color>
+    <color name="wlf_spinner_end">#E879F9</color>
 </resources>

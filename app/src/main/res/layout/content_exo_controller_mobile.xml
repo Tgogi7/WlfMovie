@@ -1,293 +1,438 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  WLFMOVIE - Layout moderno del controller del player (mobile) v2.
+  Incluye barras verticales visibles de brillo (izq) y volumen (der).
+
+  Estructura:
+  ┌────────────────────────────────────────────────────────────┐
+  │ [←]  Título de la película              [▶ Siguiente] [⚙S1]│  ← Header
+  │      S1 E1 · Nombre del capítulo                            │
+  │                                                             │
+  │ [☀]                                              [🔊]       │
+  │  80%    [⟲ -10s]    [⏸]    [+10s ⟳]            60%        │  ← Centro: 3 botones + barras
+  │  ┃                                               ┃         │
+  │  ┃                                               ┃         │
+  │                                                             │
+  │ [💬 subs][🔊 audio] 00:23 ━━━●━━━━━━━━ 1:45:30 [⛶ zoom]   │  ← Footer
+  └────────────────────────────────────────────────────────────┘
+
+  Las barras verticales son táctiles: el usuario arrastra el dedo
+  arriba/abajo dentro de la barra para ajustar el valor.
+-->
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/cl_exo_controller"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/wlf_overlay">
 
-    <View
-        android:id="@+id/exo_controls_background"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="#98000000"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:visibility="gone" />
-
+    <!-- ===== HEADER ===== -->
     <ImageView
         android:id="@+id/btn_exo_back"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
         android:layout_marginStart="16dp"
-        android:padding="8dp"
-        android:src="@drawable/ic_player_back"
-        android:tint="#FFFFFF"
-        app:layout_constraintBottom_toBottomOf="@id/tv_exo_subtitle"
+        android:layout_marginTop="16dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:contentDescription="Volver"
+        android:focusable="true"
+        android:padding="10dp"
+        android:src="@drawable/wlf_ic_player_back"
+        android:tint="@color/wlf_text_primary"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/tv_exo_title"
-        tools:ignore="ContentDescription,UseAppTint" />
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="UseAppTint" />
 
     <TextView
         android:id="@+id/tv_exo_title"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
+        android:layout_marginStart="12dp"
         android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
-        android:textColor="#FFFFFF"
+        android:layout_marginEnd="12dp"
+        android:fontFamily="sans-serif-medium"
+        android:textColor="@color/wlf_text_primary"
         android:textSize="18sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toStartOf="@id/btn_exo_external_player"
+        android:shadowColor="#000000"
+        android:shadowDx="0"
+        android:shadowDy="2"
+        android:shadowRadius="4"
+        app:layout_constraintEnd_toStartOf="@id/btn_next_episode"
         app:layout_constraintStart_toEndOf="@id/btn_exo_back"
         app:layout_constraintTop_toTopOf="parent"
-        tools:text="Title" />
+        tools:text="La casa del dragón" />
 
     <TextView
         android:id="@+id/tv_exo_subtitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="4dp"
-        android:layout_marginEnd="16dp"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toStartOf="@id/btn_exo_external_player"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="12dp"
+        android:alpha="0.85"
+        android:fontFamily="sans-serif-light"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="13sp"
+        app:layout_constraintEnd_toStartOf="@id/btn_next_episode"
         app:layout_constraintStart_toEndOf="@id/btn_exo_back"
         app:layout_constraintTop_toBottomOf="@id/tv_exo_title"
-        tools:text="Description" />
+        tools:text="T1 E1 · La heredera de los dragones" />
 
-    <ImageView
-        android:id="@+id/btn_exo_external_player"
+    <!-- Botón Siguiente episodio (solo series) -->
+    <TextView
+        android:id="@+id/btn_next_episode"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="12dp"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/wlf_bg_next_episode_button"
+        android:clickable="true"
+        android:drawableStart="@drawable/wlf_ic_next_episode"
+        android:drawablePadding="8dp"
+        android:drawableTint="@color/wlf_text_primary"
+        android:focusable="true"
+        android:gravity="center"
+        android:text="Siguiente"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:visibility="gone"
+        app:layout_constraintEnd_toStartOf="@id/btn_exo_servers"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
+
+    <!-- Botón Servers (chip con texto) -->
+    <TextView
+        android:id="@+id/btn_exo_servers"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="16dp"
-        android:padding="8dp"
-        android:src="@drawable/exo_styled_controls_external_player"
-        android:tint="#FFFFFF"
-        app:layout_constraintBottom_toBottomOf="@id/tv_exo_subtitle"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/wlf_bg_server_button"
+        android:clickable="true"
+        android:drawableStart="@drawable/wlf_ic_servers"
+        android:drawablePadding="8dp"
+        android:drawableTint="@color/wlf_text_primary"
+        android:focusable="true"
+        android:gravity="center"
+        android:text="Server 1"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="13sp"
+        android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@id/tv_exo_title"
-        tools:ignore="ContentDescription,UseAppTint" />
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="Server 1" />
 
+    <!-- ===== BARRA DE BRILLO (izquierda, vertical) ===== -->
+    <LinearLayout
+        android:id="@+id/ll_brightness"
+        android:layout_width="48dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="80dp"
+        android:layout_marginBottom="80dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toTopOf="@id/exo_bottom_bar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tv_exo_subtitle">
+
+        <!-- Porcentaje arriba -->
+        <TextView
+            android:id="@+id/tv_brightness_percentage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:fontFamily="monospace"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            tools:text="80%" />
+
+        <!-- Track + progreso (usa ConstraintLayout para soportar porcentajes) -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="6dp"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <!-- Track (fondo) -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/wlf_bg_vertical_bar_track"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <!-- Progreso (relleno, alineado abajo, 80% de la altura) -->
+            <View
+                android:id="@+id/v_brightness_progress"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:background="@drawable/wlf_bg_vertical_bar_progress"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintHeight_percent="0.80"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintVertical_bias="1.0" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Icono de brillo abajo -->
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginTop="8dp"
+            android:src="@drawable/wlf_ic_brightness"
+            android:tint="@color/wlf_text_primary"
+            tools:ignore="UseAppTint" />
+    </LinearLayout>
+
+    <!-- ===== BARRA DE VOLUMEN (derecha, vertical) ===== -->
+    <LinearLayout
+        android:id="@+id/ll_volume"
+        android:layout_width="48dp"
+        android:layout_height="0dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginTop="80dp"
+        android:layout_marginBottom="80dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toTopOf="@id/exo_bottom_bar"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tv_exo_subtitle">
+
+        <!-- Porcentaje arriba -->
+        <TextView
+            android:id="@+id/tv_volume_percentage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:fontFamily="monospace"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            tools:text="60%" />
+
+        <!-- Track + progreso (usa ConstraintLayout para soportar porcentajes) -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="6dp"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <!-- Track (fondo) -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/wlf_bg_vertical_bar_track"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <!-- Progreso (relleno, alineado abajo, 60% de la altura) -->
+            <View
+                android:id="@+id/v_volume_progress"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:background="@drawable/wlf_bg_vertical_bar_progress"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintHeight_percent="0.60"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintVertical_bias="1.0" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Icono de volumen abajo -->
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginTop="8dp"
+            android:src="@drawable/wlf_ic_volume"
+            android:tint="@color/wlf_text_primary"
+            tools:ignore="UseAppTint" />
+    </LinearLayout>
+
+    <!-- ===== CENTER CONTROLS - 3 botones separados ===== -->
     <LinearLayout
         android:id="@+id/exo_center_controls"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:gravity="center"
         android:orientation="horizontal"
-        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintTop_toTopOf="parent">
 
+        <!-- -10s (ID cambiado a btn_rew_10 para que ExoPlayer no sobrescriba el icono) -->
         <ImageView
-            android:id="@+id/btn_custom_prev"
-            android:layout_width="60dp"
-            android:layout_height="match_parent"
-            android:padding="10dp"
-            android:src="@drawable/ic_previous"
-            app:tint="#FFFFFF" />
+            android:id="@+id/btn_rew_10"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginEnd="40dp"
+            android:background="@drawable/wlf_bg_button_circle_selector"
+            android:clickable="true"
+            android:contentDescription="Retroceder 10"
+            android:focusable="true"
+            android:padding="14dp"
+            android:src="@drawable/wlf_ic_rewind_10"
+            android:tint="@color/wlf_text_primary"
+            tools:ignore="UseAppTint" />
 
-        <ImageView
-            android:id="@+id/exo_rew"
-            android:layout_width="60dp"
-            android:layout_height="match_parent"
-            android:padding="10dp"
-            android:src="@drawable/exo_styled_controls_rewind"
-            android:tint="#FFFFFF"
-            tools:ignore="ContentDescription,PrivateResource,UseAppTint" />
-
-        <ImageView
-            android:id="@+id/exo_replay"
-            android:layout_width="60dp"
-            android:layout_height="match_parent"
-            android:padding="10dp"
-            android:src="@drawable/ic_refresh"
-            app:tint="#FFFFFF"
-            tools:ignore="ContentDescription" />
-
+        <!-- Play/Pause -->
         <ImageView
             android:id="@+id/exo_play_pause"
-            android:layout_width="90dp"
-            android:layout_height="match_parent"
-            android:padding="15dp"
-            android:src="@drawable/exo_styled_controls_play"
-            android:tint="#FFFFFF"
-            tools:ignore="ContentDescription,PrivateResource,UseAppTint" />
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:background="@drawable/wlf_bg_button_play_selector"
+            android:clickable="true"
+            android:contentDescription="Reproducir/Pausar"
+            android:focusable="true"
+            android:padding="22dp"
+            android:src="@drawable/wlf_ic_play_pause_selector"
+            android:tint="@color/wlf_text_primary"
+            tools:ignore="UseAppTint" />
 
+        <!-- +10s (ID cambiado a btn_ffwd_10 para que ExoPlayer no sobrescriba el icono) -->
         <ImageView
-            android:id="@+id/exo_ffwd"
-            android:layout_width="60dp"
-            android:layout_height="match_parent"
-            android:padding="10dp"
-            android:src="@drawable/exo_styled_controls_fastforward"
-            android:tint="#FFFFFF"
-            tools:ignore="ContentDescription,PrivateResource,UseAppTint" />
-
-        <ImageView
-            android:id="@+id/btn_custom_next"
-            android:layout_width="60dp"
-            android:layout_height="match_parent"
-            android:padding="10dp"
-            android:src="@drawable/ic_next"
-            app:tint="#FFFFFF" />
+            android:id="@+id/btn_ffwd_10"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginStart="40dp"
+            android:background="@drawable/wlf_bg_button_circle_selector"
+            android:clickable="true"
+            android:contentDescription="Adelantar 10"
+            android:focusable="true"
+            android:padding="14dp"
+            android:src="@drawable/wlf_ic_forward_10"
+            android:tint="@color/wlf_text_primary"
+            tools:ignore="UseAppTint" />
 
     </LinearLayout>
 
-    <androidx.media3.ui.DefaultTimeBar
-        android:id="@+id/exo_progress"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginBottom="4dp"
-        app:layout_constraintBottom_toTopOf="@id/exo_bottom_bar"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
+    <!-- ===== FOOTER (barra inferior) ===== -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/exo_bottom_bar"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
+        <!-- Botones a la izquierda: subs + audio -->
+        <ImageView
+            android:id="@+id/btn_exo_subs"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/wlf_bg_icon_button_selector"
+            android:clickable="true"
+            android:contentDescription="Subtítulos"
+            android:focusable="true"
+            android:padding="8dp"
+            android:src="@drawable/wlf_ic_subs"
+            android:tint="@color/wlf_text_primary"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            tools:ignore="UseAppTint" />
+
+        <ImageView
+            android:id="@+id/btn_exo_audio"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/wlf_bg_icon_button_selector"
+            android:clickable="true"
+            android:contentDescription="Audio"
+            android:focusable="true"
+            android:padding="8dp"
+            android:src="@drawable/wlf_ic_audio"
+            android:tint="@color/wlf_text_primary"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@id/btn_exo_subs"
+            tools:ignore="UseAppTint" />
+
+        <!-- Tiempo actual -->
         <TextView
             android:id="@+id/exo_position"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="#FFFFFFFF"
-            android:textSize="12sp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:text="00:00:00" />
+            android:layout_marginStart="12dp"
+            android:fontFamily="monospace"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="13sp"
+            app:layout_constraintBottom_toBottomOf="@id/btn_exo_subs"
+            app:layout_constraintStart_toEndOf="@id/btn_exo_audio"
+            app:layout_constraintTop_toTopOf="@id/btn_exo_subs"
+            tools:text="00:23" />
 
-        <TextView
-            android:id="@+id/tv_time_separator"
-            android:layout_width="wrap_content"
+        <!-- Seekbar moderna -->
+        <androidx.media3.ui.DefaultTimeBar
+            android:id="@+id/exo_progress"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:text="·"
-            android:textColor="#B3FFFFFF"
-            android:textSize="12sp"
-            app:layout_constraintBottom_toBottomOf="parent"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            app:bar_height="3dp"
+            app:buffered_color="@color/wlf_seekbar_buffered"
+            app:played_color="@color/wlf_seekbar_progress"
+            app:scrubber_color="@color/wlf_seekbar_thumb"
+            app:scrubber_dragged_size="18dp"
+            app:scrubber_drawable="@drawable/wlf_seekbar_thumb"
+            app:unplayed_color="@color/wlf_seekbar_track"
+            app:layout_constraintBottom_toBottomOf="@id/btn_exo_subs"
+            app:layout_constraintEnd_toStartOf="@id/exo_duration"
             app:layout_constraintStart_toEndOf="@id/exo_position"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:ignore="HardcodedText" />
+            app:layout_constraintTop_toTopOf="@id/btn_exo_subs" />
 
+        <!-- Tiempo total -->
         <TextView
             android:id="@+id/exo_duration"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="#B3FFFFFF"
-            android:textSize="12sp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toEndOf="@id/tv_time_separator"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:text="00:00:00" />
+            android:layout_marginEnd="12dp"
+            android:alpha="0.85"
+            android:fontFamily="monospace"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="13sp"
+            app:layout_constraintBottom_toBottomOf="@id/btn_exo_subs"
+            app:layout_constraintEnd_toStartOf="@id/btn_exo_zoom"
+            app:layout_constraintTop_toTopOf="@id/btn_exo_subs"
+            tools:text="1:45:30" />
 
+        <!-- Botón Zoom -->
         <ImageView
-            android:id="@+id/btn_exo_lock"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="16dp"
-            android:padding="12dp"
-            android:src="@drawable/exo_styled_controls_lock"
-            android:tint="#FFFFFF"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/btn_exo_picture_in_picture"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:ignore="ContentDescription,PrivateResource,UseAppTint" />
-
-        <ImageView
-            android:id="@+id/btn_exo_picture_in_picture"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="16dp"
-            android:padding="12dp"
-            android:src="@drawable/exo_styled_controls_picture_in_picture"
-            android:tint="#FFFFFF"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/btn_exo_aspect_ratio"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:ignore="ContentDescription,PrivateResource,UseAppTint" />
-
-        <ImageView
-            android:id="@+id/btn_exo_aspect_ratio"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="16dp"
-            android:padding="12dp"
-            android:src="@drawable/exo_styled_controls_aspect_ratio"
-            android:tint="#FFFFFF"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/exo_settings"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:ignore="ContentDescription,PrivateResource,UseAppTint" />
-
-        <ImageView
-            android:id="@+id/exo_settings"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:padding="12dp"
-            android:src="@drawable/exo_styled_controls_settings"
-            android:tint="#FFFFFF"
+            android:id="@+id/btn_exo_zoom"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/wlf_bg_icon_button_selector"
+            android:clickable="true"
+            android:contentDescription="Zoom"
+            android:focusable="true"
+            android:padding="8dp"
+            android:src="@drawable/wlf_ic_zoom"
+            android:tint="@color/wlf_text_primary"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:ignore="ContentDescription,PrivateResource,UseAppTint" />
+            tools:ignore="UseAppTint" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <TextView
-        android:id="@+id/btn_skip_intro"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="16dp"
-        android:background="@drawable/bg_skip_intro_button"
-        android:drawableStart="@drawable/exo_styled_controls_fastforward"
-        android:drawablePadding="8dp"
-        android:gravity="center"
-        android:paddingStart="16dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="8dp"
-        android:text="@string/player_skip_intro"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@id/exo_progress"
-        app:layout_constraintEnd_toEndOf="parent"
-        tools:visibility="visible" />
-
-    <ImageView
-        android:id="@+id/btn_exo_unlock"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="24dp"
-        android:padding="12dp"
-        android:src="@drawable/exo_styled_controls_unlock"
-        android:tint="#FFFFFF"
+    <!-- ===== LOADING SPINNER ===== -->
+    <ProgressBar
+        android:id="@+id/exo_buffering"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:indeterminateDrawable="@drawable/wlf_loading_spinner"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        tools:ignore="ContentDescription,PrivateResource,UseAppTint"
+        app:layout_constraintTop_toTopOf="parent"
         tools:visibility="visible" />
-
-    <androidx.constraintlayout.widget.Group
-        android:id="@+id/g_controls_lock"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:visibility="visible"
-        app:constraint_referenced_ids="btn_exo_back,tv_exo_title,tv_exo_subtitle,btn_exo_external_player,exo_center_controls,exo_progress,exo_bottom_bar" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

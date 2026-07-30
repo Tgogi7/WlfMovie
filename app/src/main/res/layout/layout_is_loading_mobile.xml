@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE: Skeleton/loading rediseñado.
+  Fondo morado oscuro + spinner con gradiente morado-fucsia.
+-->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/app_background_color"
+    android:background="@drawable/wlf_bg_details_fragment"
     android:clickable="true"
     android:focusable="true"
     android:visibility="visible"
@@ -12,11 +16,9 @@
 
     <ProgressBar
         android:id="@+id/pb_is_loading"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:indeterminate="true"
-        android:indeterminateTint="#C6C6C6"
-        android:indeterminateTintMode="src_atop"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:indeterminateDrawable="@drawable/wlf_loading_spinner"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -27,7 +29,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/loading_error_title"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/wlf_text_primary"
         android:textSize="20sp"
         app:layout_constraintBottom_toTopOf="@id/btn_is_loading_retry"
         app:layout_constraintEnd_toEndOf="parent"

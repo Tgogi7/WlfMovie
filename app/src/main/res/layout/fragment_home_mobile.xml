@@ -1,35 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE: Home rediseñado.
+  Fondo con gradiente morado oscuro.
+  Sin carousel auto-scroll (FEATURED eliminado).
+  Logo de WlfMovie arriba a la izquierda.
+-->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/wlf_bg_details_fragment"
     tools:context=".fragments.home.HomeMobileFragment">
-
-    <ImageView
-        android:id="@+id/iv_home_background"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:foreground="?attr/home_gradient_drawable"
-        android:scaleType="centerCrop"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:ignore="ContentDescription" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_home"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:clipToPadding="false"
         android:orientation="vertical"
+        android:paddingTop="72dp"
+        android:paddingBottom="16dp"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        tools:itemCount="1"
-        tools:listitem="@layout/content_category_swiper_mobile" />
+        tools:itemCount="3"
+        tools:listitem="@layout/content_category_mobile_item" />
+
+    <!-- Logo WlfMovie fijo arriba -->
+    <ImageView
+        android:id="@+id/iv_provider_logo"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true"
+        android:importantForAccessibility="no"
+        android:padding="4dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- ImageView oculto para compatibilidad (iv_home_background) -->
+    <ImageView
+        android:id="@+id/iv_home_background"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:scaleType="centerCrop"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="ContentDescription" />
 
     <include
         android:id="@+id/is_loading"
@@ -38,20 +64,6 @@
         android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <ImageView
-        android:id="@+id/iv_provider_logo"
-        android:layout_width="60dp"
-        android:layout_height="0dp"
-        android:background="@drawable/bg_provider_logo_home_mobile"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
-        android:duplicateParentState="true"
-        android:padding="8dp"
-        android:importantForAccessibility="no"
-        app:layout_constraintDimensionRatio="1:1"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 

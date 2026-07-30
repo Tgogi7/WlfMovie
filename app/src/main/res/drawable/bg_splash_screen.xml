@@ -1,17 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE: Splash screen personalizado.
+  Usa el banner que reemplazaste (ic_banner_foreground) con fondo morado oscuro.
+
+  IMPORTANTE: Para que el logo NO se vea aplastado, vamos a usar un <bitmap>
+  dentro de un <item> con gravity="center" - esto centra la imagen a su tamaño
+  natural sin deformarla.
+
+  Si tu logo es muy grande o muy chico, ajusta el width/height del <item>.
+  El aspect ratio (proporcion) del item DEBE coincidir con el de tu logo:
+  - Logo cuadrado (1:1): usa 200dp x 200dp
+  - Logo ancho (2:1): usa 280dp x 140dp
+  - Logo 16:9: usa 320dp x 180dp
+
+  Si no sabes la proporcion de tu logo, abrelo en cualquier visor de imagenes
+  y mira las dimensiones en pixeles. Ej: 1024x1024 = cuadrado.
+-->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android"
     android:opacity="opaque">
 
+    <!-- Fondo: gradiente diagonal morado oscuro a morado profundo -->
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="#1E2129" />
+            <gradient
+                android:angle="135"
+                android:startColor="#0F0518"
+                android:centerColor="#1A0B2E"
+                android:endColor="#3B0764"
+                android:type="linear" />
         </shape>
     </item>
 
+    <!-- Logo de WlfMovie centrado, sin deformar -->
+    <!-- Si tu logo es cuadrado, deja 220x220. Si es ancho, cambia a 280x140 o similar. -->
     <item
-        android:width="320dp"
-        android:height="180dp"
-        android:drawable="@mipmap/ic_banner_foreground"
-        android:gravity="center" />
+        android:width="220dp"
+        android:height="220dp"
+        android:gravity="center">
+        <bitmap
+            android:src="@mipmap/ic_banner_foreground"
+            android:gravity="center"
+            android:tileMode="disabled" />
+    </item>
 
 </layer-list>

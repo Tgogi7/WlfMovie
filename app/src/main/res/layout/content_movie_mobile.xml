@@ -1,205 +1,293 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  WLFMOVIE - Layout rediseñado de detalles de película (Netflix-style).
+  Mantiene los mismos IDs que el original para que MovieViewHolder siga funcionando.
+
+  Estructura:
+  ┌──────────────────────────────────────┐
+  │                                      │
+  │         BACKDROP (16:9)              │ ← iv_movie_poster (repurposed)
+  │                                      │
+  │  ──────────────────────────────────  │ ← gradiente
+  │  Título grande                       │ ← tv_movie_title
+  │  ★ 8.5 · 2022 · 2h 28m · HD          │ ← tags
+  │  Acción, Aventura, Sci-Fi            │ ← tv_movie_genres
+  │                                      │
+  │  [▶ Ver película]  [Ver saga]        │ ← btn_movie_watch_now + btn_saga (nuevo)
+  │                                      │
+  │  Sinopsis completa...                │ ← tv_movie_overview
+  │                                      │
+  └──────────────────────────────────────┘
+-->
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:background="@android:color/transparent">
 
+    <!-- ===== BACKDROP (16:9) ===== -->
     <ImageView
         android:id="@+id/iv_movie_poster"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="100dp"
-        android:layout_marginTop="32dp"
-        android:layout_marginEnd="100dp"
-        android:adjustViewBounds="true"
+        android:layout_height="0dp"
+        android:scaleType="centerCrop"
         android:importantForAccessibility="no"
+        app:layout_constraintDimensionRatio="16:9"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        tools:layout_constraintDimensionRatio="2:3"
-        tools:layout_height="0dp" />
+        tools:src="@tools:sample/backdrops" />
 
+    <!-- Gradiente sobre el backdrop para que el título se lea -->
+    <View
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@drawable/wlf_bg_details_gradient"
+        app:layout_constraintBottom_toBottomOf="@id/iv_movie_poster"
+        app:layout_constraintEnd_toEndOf="@id/iv_movie_poster"
+        app:layout_constraintStart_toStartOf="@id/iv_movie_poster"
+        app:layout_constraintTop_toTopOf="@id/iv_movie_poster" />
+
+    <!-- btn_movie_favorite (mantenido del original, ahora con estilo WlfMovie) -->
     <ImageView
         android:id="@+id/btn_movie_favorite"
-        android:layout_width="wrap_content"
-        android:layout_height="0dp"
-        android:layout_marginTop="12dp"
-        android:layout_marginEnd="12dp"
-        android:padding="10dp"
-        android:src="@drawable/ic_favorite_disable"
-        android:tint="@drawable/color_button_text"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true"
         android:importantForAccessibility="no"
-        app:layout_constraintDimensionRatio="1:1"
+        android:padding="8dp"
+        android:src="@drawable/wlf_ic_heart_selector"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="UseAppTint" />
 
+    <!-- ===== TÍTULO ===== -->
     <TextView
         android:id="@+id/tv_movie_title"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:layout_marginTop="26dp"
-        android:layout_marginEnd="10dp"
-        android:gravity="center"
-        android:textColor="#FFFFFF"
-        android:textSize="24sp"
-        android:textStyle="bold"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginTop="16dp"
+        android:fontFamily="sans-serif-black"
+        android:shadowColor="#000000"
+        android:shadowDx="0"
+        android:shadowDy="2"
+        android:shadowRadius="8"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="28sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/iv_movie_poster"
-        app:layout_goneMarginTop="64dp"
-        tools:text="Title" />
+        tools:text="Spider-Man: No Way Home" />
 
-    <ImageView
-        android:id="@+id/iv_movie_rating_icon"
+    <!-- ===== TAGS: rating · año · duración · calidad ===== -->
+    <LinearLayout
+        android:id="@+id/ll_movie_tags"
         android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginStart="10dp"
-        android:src="@drawable/ic_star"
-        android:tint="#C0C0C0"
-        android:importantForAccessibility="no"
-        app:layout_constraintBottom_toBottomOf="@id/tv_movie_rating"
-        app:layout_constraintDimensionRatio="1:1"
-        app:layout_constraintEnd_toStartOf="@id/tv_movie_rating"
-        app:layout_constraintHorizontal_chainStyle="packed"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/tv_movie_rating"
-        tools:ignore="UseAppTint" />
-
-    <TextView
-        android:id="@+id/tv_movie_rating"
-        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        app:layout_constraintBottom_toTopOf="@id/barrier1"
-        app:layout_constraintEnd_toStartOf="@id/tv_movie_quality"
-        app:layout_constraintStart_toEndOf="@id/iv_movie_rating_icon"
-        app:layout_constraintTop_toBottomOf="@id/tv_movie_title"
-        tools:text="#.#" />
-
-    <TextView
-        android:id="@+id/tv_movie_quality"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="10dp"
-        android:textAllCaps="true"
-        android:textColor="#FFFFFF"
-        android:textStyle="bold"
-        app:layout_constraintBottom_toTopOf="@id/barrier1"
-        app:layout_constraintEnd_toStartOf="@id/tv_movie_released"
-        app:layout_constraintStart_toEndOf="@id/tv_movie_rating"
-        app:layout_constraintTop_toBottomOf="@id/tv_movie_title"
-        tools:text="HD"
-        tools:visibility="visible" />
-
-    <TextView
-        android:id="@+id/tv_movie_released"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="10dp"
-        app:layout_constraintBottom_toTopOf="@id/barrier1"
-        app:layout_constraintEnd_toStartOf="@id/tv_movie_runtime"
-        app:layout_constraintStart_toEndOf="@id/tv_movie_quality"
-        app:layout_constraintTop_toBottomOf="@id/tv_movie_title"
-        tools:text="yyyy"
-        tools:visibility="visible" />
-
-    <TextView
-        android:id="@+id/tv_movie_runtime"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="10dp"
-        app:layout_constraintBottom_toTopOf="@id/barrier1"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="20dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/tv_movie_released"
-        app:layout_constraintTop_toBottomOf="@id/tv_movie_title"
-        tools:text="# h # min"
-        tools:visibility="visible" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tv_movie_title">
 
-    <androidx.constraintlayout.widget.Barrier
-        android:id="@+id/barrier1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:barrierDirection="bottom"
-        app:constraint_referenced_ids="tv_movie_rating,tv_movie_quality,tv_movie_released,tv_movie_runtime" />
+        <!-- Estrella -->
+        <ImageView
+            android:id="@+id/iv_movie_rating_icon"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_marginEnd="4dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_star"
+            android:tint="@color/wlf_fuchsia_neon"
+            tools:ignore="UseAppTint" />
 
+        <TextView
+            android:id="@+id/tv_movie_rating"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/wlf_fuchsia_neon"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            tools:text="8.5" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:text="·"
+            android:textColor="@color/wlf_text_secondary"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/tv_movie_released"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/wlf_text_secondary"
+            android:textSize="14sp"
+            tools:text="2022" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:text="·"
+            android:textColor="@color/wlf_text_secondary"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/tv_movie_runtime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/wlf_text_secondary"
+            android:textSize="14sp"
+            tools:text="2h 28m" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:text="·"
+            android:textColor="@color/wlf_text_secondary"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/tv_movie_quality"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:textAllCaps="true"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            tools:text="HD" />
+    </LinearLayout>
+
+    <!-- ===== GÉNEROS ===== -->
     <TextView
         android:id="@+id/tv_movie_genres"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="10dp"
-        android:gravity="center"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="20dp"
+        android:fontFamily="sans-serif-light"
+        android:textColor="@color/wlf_text_secondary"
+        android:textSize="14sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/barrier1"
-        tools:text="Genres" />
+        app:layout_constraintTop_toBottomOf="@id/ll_movie_tags"
+        tools:text="Acción, Aventura, Ciencia ficción" />
 
-    <TextView
-        android:id="@+id/btn_movie_watch_now"
-        style="@style/AppTheme.Widget.Mobile.Button"
-        android:layout_width="wrap_content"
+    <!-- ===== BOTONES: Ver película + Ver saga ===== -->
+    <LinearLayout
+        android:id="@+id/ll_movie_buttons"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:layout_marginTop="26dp"
-        android:text="@string/movie_watch_now"
-        app:layout_constraintEnd_toStartOf="@id/btn_movie_trailer"
-        app:layout_constraintHorizontal_chainStyle="packed"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="20dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tv_movie_genres"
-        app:layout_goneMarginEnd="10dp" />
+        app:layout_constraintTop_toBottomOf="@id/tv_movie_genres">
 
+        <!-- Botón Ver película (mantiene ID original) -->
+        <TextView
+            android:id="@+id/btn_movie_watch_now"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/wlf_bg_play_button_details"
+            android:clickable="true"
+            android:drawableStart="@drawable/wlf_ic_play"
+            android:drawablePadding="10dp"
+            android:drawableTint="@color/wlf_text_primary"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="Ver película"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <!-- Botón Ver saga (NUEVO - solo visible si TMDB tiene collection) -->
+        <TextView
+            android:id="@+id/btn_movie_saga"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/wlf_bg_secondary_button_details"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="Ver saga"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:visibility="visible" />
+    </LinearLayout>
+
+    <!-- Barra de progreso (continue watching) -->
     <ProgressBar
         android:id="@+id/pb_movie_progress"
         style="@android:style/Widget.ProgressBar.Horizontal"
         android:layout_width="0dp"
-        android:layout_height="4dp"
-        android:layout_marginStart="10dp"
+        android:layout_height="3dp"
+        android:layout_marginStart="20dp"
         android:layout_marginTop="8dp"
-        android:layout_marginEnd="10dp"
-        android:backgroundTint="#CC646464"
-        android:progressTint="#FFFFFF"
-        app:layout_constraintEnd_toEndOf="@id/btn_movie_watch_now"
-        app:layout_constraintStart_toStartOf="@id/btn_movie_watch_now"
-        app:layout_constraintTop_toBottomOf="@id/btn_movie_watch_now"
-        tools:progress="80" />
-
-    <TextView
-        android:id="@+id/btn_movie_trailer"
-        style="@style/AppTheme.Widget.Mobile.Button.Secondary"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginTop="26dp"
-        android:layout_marginEnd="10dp"
-        android:text="@string/movie_trailer"
+        android:layout_marginEnd="20dp"
+        android:progressTint="@color/wlf_fuchsia_neon"
+        android:backgroundTint="@color/wlf_seekbar_track"
+        android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/btn_movie_watch_now"
-        app:layout_constraintTop_toBottomOf="@id/tv_movie_genres" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ll_movie_buttons"
+        tools:progress="80"
+        tools:visibility="visible" />
 
-    <androidx.constraintlayout.widget.Barrier
-        android:id="@+id/barrier2"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:barrierDirection="bottom"
-        app:constraint_referenced_ids="btn_movie_watch_now,pb_movie_progress,btn_movie_trailer" />
+    <!-- Botón Tráiler eliminado por petición del usuario -->
 
+    <!-- ===== SINOPSIS ===== -->
     <TextView
         android:id="@+id/tv_movie_overview"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:layout_marginTop="30dp"
-        android:layout_marginEnd="10dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="20dp"
+        android:fontFamily="sans-serif-light"
+        android:lineSpacingExtra="4dp"
+        android:textColor="@color/wlf_text_secondary"
+        android:textSize="15sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/barrier2"
-        tools:text="Overview" />
+        app:layout_constraintTop_toBottomOf="@id/pb_movie_progress"
+        tools:text="Sinopsis de la película..." />
+
+    <!-- Botón tráiler oculto (mantiene ID para que ViewHolder no rompa) -->
+    <TextView
+        android:id="@+id/btn_movie_trailer"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/pb_movie_progress"
+        app:layout_constraintStart_toStartOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

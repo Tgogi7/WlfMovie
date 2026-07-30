@@ -1,19 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE: Search rediseñado.
+  - Fondo morado oscuro (mismo que home)
+  - Barra de búsqueda con estilo WlfMovie
+  - Chips de géneros deslizables arriba (HBO style)
+  - Grid infinito de caratulas
+  - Sin switch de búsqueda global (siempre busca en TMDB)
+-->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/wlf_bg_details_fragment"
     tools:context=".fragments.search.SearchMobileFragment">
 
+    <!-- Barra de búsqueda -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/cl_search"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:layout_marginTop="32dp"
-        android:layout_marginEnd="10dp"
-        android:background="@drawable/bg_search_edittext"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/wlf_bg_search_edittext"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
@@ -24,7 +34,7 @@
             android:layout_height="0dp"
             android:padding="12dp"
             android:src="@drawable/ic_search"
-            android:tint="#FFFFFF"
+            android:tint="@color/wlf_fuchsia_neon"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintDimensionRatio="1:1"
             app:layout_constraintStart_toStartOf="parent"
@@ -43,6 +53,8 @@
             android:maxLines="1"
             android:paddingTop="13dp"
             android:paddingBottom="13dp"
+            android:textColor="@color/wlf_text_primary"
+            android:textColorHint="@color/wlf_text_muted"
             android:textSize="16sp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@id/btn_search_clear"
@@ -56,20 +68,7 @@
             android:layout_height="0dp"
             android:padding="12dp"
             android:src="@drawable/ic_search_clear"
-            android:tint="#FFFFFF"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintDimensionRatio="1:1"
-            app:layout_constraintEnd_toStartOf="@id/btn_search_voice"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:ignore="ContentDescription,PrivateResource,UseAppTint" />
-
-        <ImageView
-            android:id="@+id/btn_search_voice"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:padding="12dp"
-            android:src="@drawable/ic_mic"
-            android:tint="#FFFFFF"
+            android:tint="@color/wlf_text_secondary"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintDimensionRatio="1:1"
             app:layout_constraintEnd_toEndOf="parent"
@@ -78,21 +77,42 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- Chips de géneros deslizables -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_genres"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:clipToPadding="false"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/cl_search"
+        tools:listitem="@layout/wlf_item_genre_chip" />
+
+    <!-- Switch de búsqueda global (oculto por defecto, se mantiene para compatibilidad) -->
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/sw_global_search"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
         android:text="@string/global_search"
-        app:layout_constraintEnd_toEndOf="@id/cl_search"
-        app:layout_constraintStart_toStartOf="@id/cl_search"
-        app:layout_constraintTop_toBottomOf="@id/cl_search" />
+        android:textColor="@color/wlf_text_secondary"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/rv_genres" />
 
+    <!-- Grid de resultados -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_search"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="8dp"
         android:clipChildren="false"
         android:clipToPadding="false"
         android:orientation="vertical"
