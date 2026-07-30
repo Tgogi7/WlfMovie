@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spinner de carga moderno con gradiente morado→fucsia.
+  Es un anillo grueso con gradiente circular.
+-->
+<rotate xmlns:android="http://schemas.android.com/apk/res/android"
+    android:fromDegrees="0"
+    android:toDegrees="360"
+    android:pivotX="50%"
+    android:pivotY="50%"
+    android:duration="1200"
+    android:repeatCount="infinite"
+    android:interpolator="@android:anim/linear_interpolator">
+
+    <shape
+        android:shape="ring"
+        android:innerRadiusRatio="3"
+        android:thicknessRatio="8"
+        android:useLevel="false">
+
+        <gradient
+            android:angle="0"
+            android:startColor="#7C3AED"
+            android:centerColor="#E879F9"
+            android:endColor="#007C3AED"
+            android:type="sweep" />
+
+        <size android:width="48dp" android:height="48dp" />
+    </shape>
+</rotate>

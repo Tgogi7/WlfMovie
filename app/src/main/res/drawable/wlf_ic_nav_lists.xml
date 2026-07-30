@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Icono Listas moderno WlfMovie - bookmark con líneas de lista.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <!-- Bookmark -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M7,4 C7,3.4 7.4,3 8,3 L20,3 C20.6,3 21,3.4 21,4 L21,25 L14,20 L7,25 Z" />
+    <!-- Líneas de lista dentro -->
+    <path
+        android:fillColor="#0F0518"
+        android:pathData="M10,9 L18,9 L18,10.5 L10,10.5 Z M10,12 L18,12 L18,13.5 L10,13.5 Z M10,15 L15,15 L15,16.5 L10,16.5 Z" />
+</vector>

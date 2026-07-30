@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Item de la lista de... listas. Muestra icono + título + contador.
+  Al click abre la grid de películas/series correspondiente.
+-->
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="20dp"
+    android:layout_marginEnd="20dp"
+    android:layout_marginBottom="12dp"
+    android:background="@drawable/wlf_bg_dialog"
+    android:clickable="true"
+    android:focusable="true"
+    android:padding="20dp">
+
+    <!-- Icono -->
+    <ImageView
+        android:id="@+id/iv_list_icon"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/wlf_ic_heart_red"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Título -->
+    <TextView
+        android:id="@+id/tv_list_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:fontFamily="sans-serif-medium"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/tv_list_count"
+        app:layout_constraintStart_toEndOf="@id/iv_list_icon"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="Películas favoritas"
+        xmlns:tools="http://schemas.android.com/tools" />
+
+    <!-- Contador -->
+    <TextView
+        android:id="@+id/tv_list_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/wlf_bg_server_button"
+        android:fontFamily="sans-serif-medium"
+        android:paddingStart="12dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="4dp"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="12"
+        xmlns:tools="http://schemas.android.com/tools" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

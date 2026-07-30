@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ripple selector para el botón PLAY/PAUSE del centro.
+  Más grande (72dp) y con más glow que los de +10/-10.
+  Nota: state_hover no es soportado en drawables AAPT, se omite.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <gradient
+                android:angle="135"
+                android:startColor="#A78BFA"
+                android:endColor="#F0ABFC"
+                android:type="linear" />
+            <stroke android:width="2.5dp" android:color="#FFFFFFFF" />
+            <size android:width="72dp" android:height="72dp" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <gradient
+                android:angle="135"
+                android:startColor="#7C3AED"
+                android:centerColor="#5B21B6"
+                android:endColor="#E879F9"
+                android:type="linear" />
+            <stroke android:width="3dp" android:color="#FFF0ABFC" />
+            <size android:width="72dp" android:height="72dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:angle="135"
+                android:startColor="#7C3AED"
+                android:centerColor="#5B21B6"
+                android:endColor="#E879F9"
+                android:type="linear" />
+            <stroke android:width="2dp" android:color="#99F0ABFC" />
+            <size android:width="72dp" android:height="72dp" />
+        </shape>
+    </item>
+</selector>
+

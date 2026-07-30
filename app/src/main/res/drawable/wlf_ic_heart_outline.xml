@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icono corazón_outline (no favorito) - contorno blanco -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round"
+        android:pathData="M14,24 L4,14 C1,11 1,6 4,4 C7,2 11,3 14,7 C17,3 21,2 24,4 C27,6 27,11 24,14 L14,24 Z" />
+</vector>

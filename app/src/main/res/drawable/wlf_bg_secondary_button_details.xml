@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Botón secundario "Ver temporadas" / "Ver saga" - estilo Netflix.
+  Capsula con fondo semi-transparente y borde, texto blanco.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#66FFFFFF" />
+            <corners android:radius="28dp" />
+            <padding
+                android:left="24dp"
+                android:top="14dp"
+                android:right="24dp"
+                android:bottom="14dp" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#44FFFFFF" />
+            <corners android:radius="28dp" />
+            <stroke android:width="2dp" android:color="#FFE879F9" />
+            <padding
+                android:left="24dp"
+                android:top="14dp"
+                android:right="24dp"
+                android:bottom="14dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#33FFFFFF" />
+            <corners android:radius="28dp" />
+            <padding
+                android:left="24dp"
+                android:top="14dp"
+                android:right="24dp"
+                android:bottom="14dp" />
+        </shape>
+    </item>
+</selector>

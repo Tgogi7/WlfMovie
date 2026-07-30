@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Icono palomita (check) para "+ agregado a ver después".
+  Signo de éxito: palomita blanca en círculo transparente.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <!-- Círculo exterior (mismo que el +) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M14,3 C20.6,3 26,7.9 26,14 C26,20.1 20.6,25 14,25 C7.4,25 2,20.1 2,14 C2,7.9 7.4,3 14,3 Z" />
+    <!-- Palomita -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M9,14 L13,18 L20,10" />
+</vector>

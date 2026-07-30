@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Icono Home moderno WlfMovie - casa con techo pronunciado.
+  Outline style cuando no seleccionado, fill cuando seleccionado.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <!-- Techo -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M14,3 L3,13 L5.5,13 L5.5,23 L11,23 L11,17 L17,17 L17,23 L22.5,23 L22.5,13 L25,13 Z" />
+    <!-- Chimenea -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M19,5 L21,5 L21,9 L19,9 Z" />
+</vector>

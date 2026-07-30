@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icono + (ver después / watch later) - signo más en círculo -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <!-- Círculo exterior -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M14,3 C20.6,3 26,7.9 26,14 C26,20.1 20.6,25 14,25 C7.4,25 2,20.1 2,14 C2,7.9 7.4,3 14,3 Z" />
+    <!-- Signo + horizontal -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9,13 L19,13 L19,15 L9,15 Z" />
+    <!-- Signo + vertical -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M13,9 L15,9 L15,19 L13,19 Z" />
+</vector>

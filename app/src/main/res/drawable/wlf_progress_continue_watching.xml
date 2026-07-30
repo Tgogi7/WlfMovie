@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Drawable del progreso de Continue Watching WlfMovie.
+  Fondo transparente, barra fucsia sin bordes redondeados.
+  Barra que crece de izquierda a derecha tapando la caratula.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Sin fondo (transparente) -->
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+        </shape>
+    </item>
+    <!-- Progreso: fucsia sólido sin bordes -->
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="rectangle">
+                <solid android:color="@color/wlf_fuchsia_neon" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Background para botones pequeños cuadrados (subs, audio, zoom).
+  Circular sutil, con estado pressed y focused para D-pad.
+  Nota: state_hover no es soportado en drawables AAPT, se omite.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="#55E879F9" />
+            <stroke android:width="1.5dp" android:color="#FFF0ABFC" />
+            <size android:width="40dp" android:height="40dp" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <solid android:color="#33E879F9" />
+            <stroke android:width="2dp" android:color="#FFF0ABFC" />
+            <size android:width="40dp" android:height="40dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#1AFFFFFF" />
+            <stroke android:width="1dp" android:color="#66FFFFFF" />
+            <size android:width="40dp" android:height="40dp" />
+        </shape>
+    </item>
+</selector>
+

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Fondo del bottom navigation WlfMovie.
+  Gradiente vertical: morado muy oscuro arriba → negro abajo.
+  Borde superior con glow fucsia.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Glow superior fucsia -->
+    <item android:height="2dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="0"
+                android:startColor="#007C3AED"
+                android:centerColor="#E879F9"
+                android:endColor="#007C3AED"
+                android:type="linear" />
+        </shape>
+    </item>
+    <!-- Fondo principal: gradiente morado oscuro -->
+    <item android:top="2dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="90"
+                android:startColor="#1A0B2E"
+                android:endColor="#0F0518"
+                android:type="linear" />
+        </shape>
+    </item>
+</layer-list>

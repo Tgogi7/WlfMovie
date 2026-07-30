@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Indicador superior del bottom nav WlfMovie.
+  Pequeña barra fucsia con glow que aparece en la pestaña seleccionada.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_checked="true">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="0"
+                android:startColor="#007C3AED"
+                android:centerColor="#E879F9"
+                android:endColor="#007C3AED"
+                android:type="linear" />
+            <size android:width="40dp" android:height="3dp" />
+            <corners android:radius="2dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <size android:width="0dp" android:height="0dp" />
+        </shape>
+    </item>
+</selector>

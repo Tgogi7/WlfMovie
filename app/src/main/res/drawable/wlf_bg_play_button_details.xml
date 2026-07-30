@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Botón "Ver T1 E1" / "Ver película" - estilo Netflix.
+  Capsula con gradiente morado→fucsia, texto blanco bold.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="0"
+                android:startColor="#A78BFA"
+                android:endColor="#F0ABFC"
+                android:type="linear" />
+            <corners android:radius="28dp" />
+            <padding
+                android:left="32dp"
+                android:top="14dp"
+                android:right="32dp"
+                android:bottom="14dp" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="0"
+                android:startColor="#7C3AED"
+                android:endColor="#E879F9"
+                android:type="linear" />
+            <corners android:radius="28dp" />
+            <stroke android:width="2dp" android:color="#FFF0ABFC" />
+            <padding
+                android:left="32dp"
+                android:top="14dp"
+                android:right="32dp"
+                android:bottom="14dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="0"
+                android:startColor="#7C3AED"
+                android:endColor="#E879F9"
+                android:type="linear" />
+            <corners android:radius="28dp" />
+            <padding
+                android:left="32dp"
+                android:top="14dp"
+                android:right="32dp"
+                android:bottom="14dp" />
+        </shape>
+    </item>
+</selector>

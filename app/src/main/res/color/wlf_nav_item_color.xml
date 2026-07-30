@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Selector de color para iconos y texto del bottom nav WlfMovie.
+  Seleccionado: fucsia neón (#E879F9)
+  No seleccionado: gris oscuro (#6B6B85)
+  Checked+pressed: fucsia claro (#F0ABFC)
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/wlf_fuchsia_glow" android:state_checked="true" android:state_pressed="true" />
+    <item android:color="@color/wlf_fuchsia_neon" android:state_checked="true" />
+    <item android:color="@color/wlf_text_muted" android:state_checked="false" />
+</selector>

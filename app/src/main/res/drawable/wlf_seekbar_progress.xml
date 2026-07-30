@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Seekbar moderna del player con:
+  - Track gris oscuro (#3D3D5C)
+  - Buffer morado (#7C3AED)
+  - Progreso fucsia (#E879F9)
+  - Thumb fucsia brillante con glow
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Track de fondo -->
+    <item android:id="@android:id/background">
+        <shape android:shape="line">
+            <stroke android:width="3dp" android:color="#3D3D5C" />
+            <corners android:radius="2dp" />
+        </shape>
+    </item>
+
+    <!-- Buffered (descargado pero no reproducido) -->
+    <item android:id="@android:id/secondaryProgress">
+        <clip>
+            <shape android:shape="line">
+                <stroke android:width="3dp" android:color="#7C3AED" />
+                <corners android:radius="2dp" />
+            </shape>
+        </clip>
+    </item>
+
+    <!-- Progreso actual -->
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="line">
+                <stroke android:width="3dp" android:color="#E879F9" />
+                <corners android:radius="2dp" />
+            </shape>
+        </clip>
+    </item>
+
+</layer-list>

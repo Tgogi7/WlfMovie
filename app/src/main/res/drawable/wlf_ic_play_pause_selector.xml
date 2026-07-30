@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Selector Play/Pause - usa el icono correcto según el estado de reproducción.
+  El binding setPlayPauseButtonListener usa exo_play_pause que recibe el drawable por estado.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true" android:drawable="@drawable/wlf_ic_play" />
+    <item android:drawable="@drawable/wlf_ic_pause" />
+</selector>

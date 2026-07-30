@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Layout de un item de la lista del diálogo.
+  TextView centrado con tipografía bold y color blanco.
+-->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tv_dialog_item_label"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/wlf_bg_dialog_item"
+    android:clickable="true"
+    android:focusable="true"
+    android:fontFamily="sans-serif-medium"
+    android:paddingStart="20dp"
+    android:paddingTop="14dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="14dp"
+    android:textAlignment="center"
+    android:textColor="@color/wlf_text_primary"
+    android:textSize="15sp" />

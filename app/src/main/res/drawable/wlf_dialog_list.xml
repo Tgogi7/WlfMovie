@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Layout principal del diálogo WlfMovie.
+  ScrollView + LinearLayout vertical con título y lista de items.
+  Fondo con gradiente morado oscuro y bordes redondeados.
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    android:layout_marginStart="40dp"
+    android:layout_marginEnd="40dp"
+    android:background="@android:color/transparent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/wlf_bg_dialog"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingTop="24dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="20dp">
+
+        <!-- Título del diálogo -->
+        <TextView
+            android:id="@+id/tv_dialog_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:textAlignment="center"
+            android:textColor="@color/wlf_fuchsia_neon"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            tools:text="Servidores" />
+
+        <!-- Contenedor de items (se llenan en runtime) -->
+        <LinearLayout
+            android:id="@+id/ll_dialog_items"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:divider="@drawable/wlf_dialog_divider"
+            android:orientation="vertical"
+            android:showDividers="middle" />
+
+    </LinearLayout>
+</ScrollView>

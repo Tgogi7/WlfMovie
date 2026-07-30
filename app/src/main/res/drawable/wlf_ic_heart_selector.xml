@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Selector del corazón de favoritos.
+  Estado seleccionado (favorito): corazón rojo relleno.
+  Estado normal (no favorito): corazón contorno blanco.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true" android:drawable="@drawable/wlf_ic_heart_red" />
+    <item android:drawable="@drawable/wlf_ic_heart_outline" />
+</selector>
