@@ -835,6 +835,25 @@ class MovieViewHolder(
             }
         }
 
+        // WLFMOVIE: Texto "Visto XX min · Faltan XX min" en TV (reemplaza barra).
+        // El TextView tv_movie_progress_text solo existe en content_movie_tv.xml.
+        binding.tvMovieProgressText?.apply {
+            val watchHistory = movie.watchHistory
+            if (watchHistory != null && watchHistory.durationMillis > 0) {
+                val watchedMin = (watchHistory.lastPlaybackPositionMillis / 60000).toInt()
+                val remainingMs = watchHistory.durationMillis - watchHistory.lastPlaybackPositionMillis
+                val remainingMin = (remainingMs / 60000).toInt()
+                text = if (remainingMin > 0) {
+                    "Visto ${watchedMin} min · Faltan ${remainingMin} min"
+                } else {
+                    "Visto · Completado"
+                }
+                visibility = View.VISIBLE
+            } else {
+                visibility = View.GONE
+            }
+        }
+
         binding.btnMovieTrailer.apply {
             val trailer = movie.trailer
             setOnClickListener {

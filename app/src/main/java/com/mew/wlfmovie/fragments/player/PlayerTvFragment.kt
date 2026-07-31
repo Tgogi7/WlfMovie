@@ -77,7 +77,7 @@ import com.mew.wlfmovie.utils.DnsResolver
 import com.mew.wlfmovie.utils.NetworkClient
 import com.mew.wlfmovie.utils.EpisodeManager
 import com.mew.wlfmovie.utils.MediaServer
-import com.mew.wlfmovie.utils.PlayerGestureHelper
+//import com.mew.wlfmovie.utils.PlayerGestureHelper
 import com.mew.wlfmovie.utils.UserPreferences
 import com.mew.wlfmovie.utils.UserDataCache
 import com.mew.wlfmovie.utils.dp
@@ -144,7 +144,7 @@ class PlayerTvFragment : Fragment() {
     private lateinit var mediaSession: MediaSession
     private lateinit var progressHandler: android.os.Handler
     private lateinit var progressRunnable: Runnable
-    private lateinit var gestureHelper: PlayerGestureHelper
+//    private lateinit var gestureHelper: PlayerGestureHelper
 
     private var servers = listOf<Video.Server>()
     private var zoomToast: Toast? = null
@@ -259,16 +259,6 @@ class PlayerTvFragment : Fragment() {
         initializeVideo()
         binding.pvPlayer.onMediaPreviousClicked = ::handleMediaPrevious
         binding.pvPlayer.onMediaNextClicked = ::handleMediaNext
-        gestureHelper = PlayerGestureHelper(
-            requireContext(),
-            binding.pvPlayer,
-            binding.llBrightness,
-            binding.pbBrightness,
-            binding.tvBrightnessPercentage,
-            binding.llVolume,
-            binding.pbVolume,
-            binding.tvVolumePercentage
-        )
 
         // Stato Video
         viewLifecycleOwner.lifecycleScope.launch {

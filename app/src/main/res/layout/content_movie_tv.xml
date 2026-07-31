@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  WLFMOVIE: Detalle de película TV rediseñado (HBO Max style).
-  Igual que content_movie_mobile.xml pero adaptado para TV.
-  - Backdrop horizontal 16:9 arriba
-  - Título grande abajo
-  - Tags (rating · año · duración · calidad)
-  - Géneros
-  - Botón Ver película
-  - Sinopsis
-  - Sin botón tráiler (oculto)
-  - Sin botón favorito (oculto, lo maneja el overlay del fragment)
+  WLFMOVIE: Detalle de película TV rediseñado (HBO Max TV style).
+  Layout 2 columnas:
+    IZQUIERDA: backdrop + título + tags + géneros
+    DERECHA:   botón "Ver película" (centrado verticalmente)
+  DEBAJO (ancho completo): sinopsis
+  Sin fondo dinámico (el fondo morado lo da el fragment_movie_tv.xml).
+  Sin tráiler, sin favorito (los maneja el overlay del fragment).
   Mantiene los mismos IDs para que MovieViewHolder.displayMovieTv() siga funcionando.
 -->
 <androidx.constraintlayout.widget.ConstraintLayout
@@ -20,60 +17,64 @@
     android:layout_height="wrap_content"
     android:background="@android:color/transparent">
 
-    <!-- ===== BACKDROP (16:9) ===== -->
+    <!-- ===== COLUMNA IZQUIERDA: backdrop + título + tags + géneros ===== -->
+    <!-- Guideline al 60% para dividir las 2 columnas -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline_middle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.6" />
+
+    <!-- Backdrop (16:9) en la columna izquierda -->
     <ImageView
         android:id="@+id/iv_movie_poster"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:layout_marginStart="48dp"
+        android:layout_marginTop="48dp"
+        android:layout_marginEnd="16dp"
         android:scaleType="centerCrop"
         android:importantForAccessibility="no"
         app:layout_constraintDimensionRatio="16:9"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toEndOf="@id/guideline_middle"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:src="@tools:sample/backdrops" />
 
-    <!-- Gradiente sobre el backdrop -->
-    <View
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="@drawable/wlf_bg_details_gradient"
-        app:layout_constraintBottom_toBottomOf="@id/iv_movie_poster"
-        app:layout_constraintEnd_toEndOf="@id/iv_movie_poster"
-        app:layout_constraintStart_toStartOf="@id/iv_movie_poster"
-        app:layout_constraintTop_toTopOf="@id/iv_movie_poster" />
-
-    <!-- ===== TÍTULO ===== -->
+    <!-- Título -->
     <TextView
         android:id="@+id/tv_movie_title"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="48dp"
-        android:layout_marginEnd="48dp"
-        android:layout_marginTop="20dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="16dp"
         android:fontFamily="sans-serif-black"
         android:shadowColor="#000000"
         android:shadowDx="0"
         android:shadowDy="2"
         android:shadowRadius="8"
         android:textColor="@color/wlf_text_primary"
-        android:textSize="36sp"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:textSize="32sp"
+        android:maxLines="3"
+        android:ellipsize="end"
+        app:layout_constraintEnd_toEndOf="@id/guideline_middle"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/iv_movie_poster"
         tools:text="Spider-Man: No Way Home" />
 
-    <!-- ===== TAGS: rating · año · duración · calidad ===== -->
+    <!-- Tags: rating · año · duración · calidad -->
     <LinearLayout
         android:id="@+id/ll_movie_tags"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="48dp"
         android:layout_marginTop="10dp"
-        android:layout_marginEnd="48dp"
+        android:layout_marginEnd="16dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toEndOf="@id/guideline_middle"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tv_movie_title">
 
@@ -100,8 +101,8 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
             android:text="·"
             android:textColor="@color/wlf_text_secondary"
             android:textSize="16sp" />
@@ -118,8 +119,8 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
             android:text="·"
             android:textColor="@color/wlf_text_secondary"
             android:textSize="16sp" />
@@ -136,8 +137,8 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
             android:text="·"
             android:textColor="@color/wlf_text_secondary"
             android:textSize="16sp" />
@@ -154,29 +155,29 @@
             tools:text="HD" />
     </LinearLayout>
 
-    <!-- ===== GÉNEROS ===== -->
+    <!-- Géneros -->
     <TextView
         android:id="@+id/tv_movie_genres"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="48dp"
         android:layout_marginTop="8dp"
-        android:layout_marginEnd="48dp"
+        android:layout_marginEnd="16dp"
         android:fontFamily="sans-serif-light"
         android:textColor="@color/wlf_text_secondary"
         android:textSize="16sp"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toEndOf="@id/guideline_middle"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/ll_movie_tags"
         tools:text="Acción, Aventura, Ciencia ficción" />
 
-    <!-- ===== BOTÓN Ver película ===== -->
+    <!-- ===== COLUMNA DERECHA: botón Ver película (centrado verticalmente con el backdrop) ===== -->
     <TextView
         android:id="@+id/btn_movie_watch_now"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="48dp"
-        android:layout_marginTop="28dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="48dp"
         android:background="@drawable/wlf_bg_play_button_details"
         android:clickable="true"
         android:drawableStart="@drawable/wlf_ic_play"
@@ -184,42 +185,57 @@
         android:drawableTint="@color/wlf_text_primary"
         android:focusable="true"
         android:gravity="center"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="12dp"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp"
         android:text="Ver película"
         android:textColor="@color/wlf_text_primary"
-        android:textSize="18sp"
+        android:textSize="20sp"
         android:textStyle="bold"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tv_movie_genres" />
+        app:layout_constraintBottom_toBottomOf="@id/iv_movie_poster"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@id/guideline_middle"
+        app:layout_constraintTop_toTopOf="@id/iv_movie_poster" />
 
-    <!-- Barra de progreso (continue watching) -->
+    <!-- Barra de progreso oculta (mantiene ID para que ViewHolder no rompa).
+         En TV no mostramos la barra gris, mostramos texto "Visto XX min". -->
     <ProgressBar
         android:id="@+id/pb_movie_progress"
         style="@android:style/Widget.ProgressBar.Horizontal"
         android:layout_width="0dp"
-        android:layout_height="4dp"
-        android:layout_marginStart="48dp"
-        android:layout_marginTop="10dp"
-        android:layout_marginEnd="48dp"
-        android:progressTint="@color/wlf_fuchsia_neon"
-        android:backgroundTint="@color/wlf_seekbar_track"
+        android:layout_height="0dp"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintStart_toStartOf="@id/guideline_middle"
         app:layout_constraintTop_toBottomOf="@id/btn_movie_watch_now"
-        tools:progress="80"
+        tools:progress="80" />
+
+    <!-- Texto "Visto XX min" o "Faltan XX min" (NUEVO en TV, reemplaza la barra) -->
+    <TextView
+        android:id="@+id/tv_movie_progress_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="32dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="48dp"
+        android:fontFamily="sans-serif-light"
+        android:textColor="@color/wlf_fuchsia_neon"
+        android:textSize="14sp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@id/guideline_middle"
+        app:layout_constraintTop_toBottomOf="@id/btn_movie_watch_now"
+        tools:text="Visto 45 min · Faltan 1h 23min"
         tools:visibility="visible" />
 
-    <!-- ===== SINOPSIS ===== -->
+    <!-- ===== SINOPSIS (ancho completo, debajo de ambas columnas) ===== -->
     <TextView
         android:id="@+id/tv_movie_overview"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="48dp"
-        android:layout_marginTop="28dp"
+        android:layout_marginTop="32dp"
         android:layout_marginEnd="48dp"
         android:fontFamily="sans-serif-light"
         android:lineSpacingExtra="4dp"
@@ -227,7 +243,7 @@
         android:textSize="16sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/pb_movie_progress"
+        app:layout_constraintTop_toBottomOf="@id/tv_movie_genres"
         tools:text="Sinopsis de la película..." />
 
     <!-- ===== Botones ocultos (mantienen IDs para que ViewHolder no rompa) ===== -->
@@ -236,7 +252,7 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/pb_movie_progress"
+        app:layout_constraintTop_toBottomOf="@id/tv_movie_overview"
         app:layout_constraintStart_toStartOf="parent" />
 
     <ImageView
@@ -244,7 +260,7 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/pb_movie_progress"
+        app:layout_constraintTop_toBottomOf="@id/tv_movie_overview"
         app:layout_constraintStart_toStartOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

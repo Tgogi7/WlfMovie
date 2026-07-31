@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE: Fondo para el título "← Volver a temporadas" del diálogo.
+  Transparente sin foco, morado con foco (para que se vea que es focusable).
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#337C3AED" />
+            <corners android:radius="6dp" />
+            <stroke android:width="2dp" android:color="#E879F9" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+        </shape>
+    </item>
+</selector>

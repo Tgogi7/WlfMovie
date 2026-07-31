@@ -1,264 +1,316 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  WLFMOVIE - Layout del controller del player (TV).
+  Gemelo del mobile PERO:
+  - SIN barras laterales de brillo/volumen (no aplican en TV).
+  - Botones más grandes para TV (D-pad).
+  - Sin ?attr/selectableItemBackgroundBorderless (Theme.Leanback no lo define).
+  - Mismos IDs que el mobile para que PlayerTvFragment funcione.
+
+  Estructura:
+  ┌────────────────────────────────────────────────────────────┐
+  │ [←]  Título de la película              [▶ Siguiente] [⚙S1]│  ← Header
+  │      S1 E1 · Nombre del capítulo                            │
+  │                                                             │
+  │           [⟲ -10s]    [⏸]    [+10s ⟳]                       │  ← Centro: 3 botones
+  │                                                             │
+  │ [💬 subs][🔊 audio] 00:23 ━━━●━━━━━━━━ 1:45:30 [⛶ zoom]   │  ← Footer
+  └────────────────────────────────────────────────────────────┘
+-->
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/cl_exo_controller"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/wlf_overlay">
 
-    <View
-        android:id="@+id/exo_controls_background"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="#98000000"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
+    <!-- ===== HEADER ===== -->
+    <ImageView
+        android:id="@+id/btn_exo_back"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginTop="32dp"
+        android:background="@drawable/wlf_bg_icon_button_selector"
+        android:clickable="true"
+        android:contentDescription="Volver"
+        android:focusable="true"
+        android:padding="12dp"
+        android:src="@drawable/wlf_ic_player_back"
+        android:tint="@color/wlf_text_primary"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        tools:visibility="gone" />
+        tools:ignore="UseAppTint" />
 
     <TextView
         android:id="@+id/tv_exo_title"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="30dp"
-        android:layout_marginTop="30dp"
-        android:layout_marginEnd="16dp"
-        android:textColor="#FFFFFF"
-        android:textSize="34sp"
-        app:layout_constraintEnd_toStartOf="@+id/btn_exo_external_player"
-        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="32dp"
+        android:layout_marginEnd="12dp"
+        android:fontFamily="sans-serif-medium"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="22sp"
+        android:shadowColor="#000000"
+        android:shadowDx="0"
+        android:shadowDy="2"
+        android:shadowRadius="4"
+        app:layout_constraintEnd_toStartOf="@id/btn_next_episode"
+        app:layout_constraintStart_toEndOf="@id/btn_exo_back"
         app:layout_constraintTop_toTopOf="parent"
-        tools:text="Title" />
+        tools:text="La casa del dragón" />
 
     <TextView
         android:id="@+id/tv_exo_subtitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="30dp"
+        android:layout_marginStart="16dp"
         android:layout_marginTop="4dp"
-        android:layout_marginEnd="16dp"
-        android:textSize="20sp"
-        app:layout_constraintEnd_toStartOf="@+id/btn_exo_external_player"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/tv_exo_title"
-        tools:text="Description" />
+        android:layout_marginEnd="12dp"
+        android:alpha="0.85"
+        android:fontFamily="sans-serif-light"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="16sp"
+        app:layout_constraintEnd_toStartOf="@id/btn_next_episode"
+        app:layout_constraintStart_toEndOf="@id/btn_exo_back"
+        app:layout_constraintTop_toBottomOf="@id/tv_exo_title"
+        tools:text="T1 E1 · La heredera de los dragones" />
 
-    <ImageView
-        android:id="@+id/btn_exo_external_player"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginTop="7dp"
-        android:layout_marginEnd="30dp"
-        android:layout_marginBottom="7dp"
-        android:background="@drawable/bg_btn_exoplayer_tv"
-        android:focusable="true"
-        android:focusableInTouchMode="true"
-        android:nextFocusLeft="@+id/btn_exo_external_player"
-        android:nextFocusRight="@+id/btn_exo_external_player"
-        android:padding="12dp"
-        android:src="@drawable/exo_styled_controls_external_player"
-        android:tint="#FFFFFF"
-        app:layout_constraintBottom_toBottomOf="@+id/tv_exo_subtitle"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/tv_exo_title"
-        tools:ignore="ContentDescription,PrivateResource,UseAppTint" />
-
-    <LinearLayout
+    <!-- Botón Siguiente episodio (solo series) -->
+    <TextView
+        android:id="@+id/btn_next_episode"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="32dp"
+        android:background="@drawable/wlf_bg_next_episode_button"
+        android:clickable="true"
+        android:drawableStart="@drawable/wlf_ic_next_episode"
+        android:drawablePadding="8dp"
+        android:drawableTint="@color/wlf_text_primary"
+        android:focusable="true"
+        android:gravity="center"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
+        android:text="Siguiente"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:visibility="gone"
+        app:layout_constraintEnd_toStartOf="@id/btn_exo_servers"
         app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
+
+    <!-- Botón Servers (chip con texto) -->
+    <TextView
+        android:id="@+id/btn_exo_servers"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="32dp"
+        android:layout_marginTop="32dp"
+        android:background="@drawable/wlf_bg_server_button"
+        android:clickable="true"
+        android:drawableStart="@drawable/wlf_ic_servers"
+        android:drawablePadding="8dp"
+        android:drawableTint="@color/wlf_text_primary"
+        android:focusable="true"
+        android:gravity="center"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
+        android:text="Server 1"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="Server 1" />
+
+    <!-- ===== CENTER CONTROLS - 3 botones separados (más grandes para TV) ===== -->
+    <LinearLayout
+        android:id="@+id/exo_center_controls"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintTop_toTopOf="parent">
 
+        <!-- -10s -->
         <ImageView
-            android:id="@+id/btn_custom_prev"
+            android:id="@+id/btn_rew_10"
             android:layout_width="80dp"
             android:layout_height="80dp"
-            android:background="@drawable/bg_btn_exoplayer_tv"
+            android:layout_marginEnd="48dp"
+            android:background="@drawable/wlf_bg_button_circle_selector"
+            android:clickable="true"
+            android:contentDescription="Retroceder 10"
             android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:nextFocusRight="@+id/exo_replay"
-            android:nextFocusUp="@+id/tv_exo_subtitle"
-            android:nextFocusDown="@+id/exo_bottom_bar"
-            android:padding="10dp"
-            android:src="@drawable/ic_previous"
-            app:tint="#FFFFFF" />
+            android:padding="18dp"
+            android:src="@drawable/wlf_ic_rewind_10"
+            android:tint="@color/wlf_text_primary"
+            tools:ignore="UseAppTint" />
 
-        <ImageView
-            android:id="@+id/exo_replay"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:background="@drawable/bg_btn_exoplayer_tv"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:nextFocusLeft="@+id/btn_custom_prev"
-            android:nextFocusRight="@+id/exo_play_pause"
-            android:nextFocusUp="@+id/tv_exo_subtitle"
-            android:nextFocusDown="@+id/exo_bottom_bar"
-            android:padding="10dp"
-            android:src="@drawable/ic_refresh"
-            app:tint="#FFFFFF" />
-
+        <!-- Play/Pause -->
         <ImageView
             android:id="@+id/exo_play_pause"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:background="@drawable/bg_btn_exoplayer_tv"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:background="@drawable/wlf_bg_button_play_selector"
+            android:clickable="true"
+            android:contentDescription="Reproducir/Pausar"
             android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:nextFocusLeft="@+id/exo_replay"
-            android:nextFocusRight="@+id/btn_custom_next"
-            android:nextFocusDown="@+id/exo_settings"
-            android:padding="2dp"
-            android:src="@drawable/exo_styled_controls_play"
-            android:tint="#FFFFFF"
-            tools:ignore="ContentDescription,PrivateResource,UseAppTint" />
+            android:padding="26dp"
+            android:src="@drawable/wlf_ic_play_pause_selector"
+            android:tint="@color/wlf_text_primary"
+            tools:ignore="UseAppTint" />
 
+        <!-- +10s -->
         <ImageView
-            android:id="@+id/btn_custom_next"
+            android:id="@+id/btn_ffwd_10"
             android:layout_width="80dp"
             android:layout_height="80dp"
-            android:background="@drawable/bg_btn_exoplayer_tv"
+            android:layout_marginStart="48dp"
+            android:background="@drawable/wlf_bg_button_circle_selector"
+            android:clickable="true"
+            android:contentDescription="Adelantar 10"
             android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:nextFocusLeft="@+id/exo_play_pause"
-            android:nextFocusUp="@+id/tv_exo_subtitle"
-            android:nextFocusDown="@+id/exo_bottom_bar"
-            android:padding="10dp"
-            android:src="@drawable/ic_next"
-            app:tint="#FFFFFF" />
+            android:padding="18dp"
+            android:src="@drawable/wlf_ic_forward_10"
+            android:tint="@color/wlf_text_primary"
+            tools:ignore="UseAppTint" />
 
     </LinearLayout>
 
-    <androidx.media3.ui.DefaultTimeBar
-        android:id="@+id/exo_progress"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="22dp"
-        android:layout_marginEnd="22dp"
-        android:layout_marginBottom="4dp"
-        android:focusable="true"
-        android:focusableInTouchMode="true"
-        android:nextFocusDown="@+id/exo_settings"
-        app:layout_constraintBottom_toTopOf="@+id/exo_bottom_bar"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
+    <!-- ===== FOOTER (barra inferior) ===== -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/exo_bottom_bar"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="30dp"
-        android:layout_marginEnd="30dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
+        android:layout_marginBottom="32dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
+        <!-- Botones a la izquierda: subs + audio -->
+        <ImageView
+            android:id="@+id/btn_exo_subs"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/wlf_bg_icon_button_selector"
+            android:clickable="true"
+            android:contentDescription="Subtítulos"
+            android:focusable="true"
+            android:padding="10dp"
+            android:src="@drawable/wlf_ic_subs"
+            android:tint="@color/wlf_text_primary"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            tools:ignore="UseAppTint" />
+
+        <ImageView
+            android:id="@+id/btn_exo_audio"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/wlf_bg_icon_button_selector"
+            android:clickable="true"
+            android:contentDescription="Audio"
+            android:focusable="true"
+            android:padding="10dp"
+            android:src="@drawable/wlf_ic_audio"
+            android:tint="@color/wlf_text_primary"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@id/btn_exo_subs"
+            tools:ignore="UseAppTint" />
+
+        <!-- Tiempo actual -->
         <TextView
             android:id="@+id/exo_position"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="#FFFFFFFF"
+            android:layout_marginStart="16dp"
+            android:fontFamily="monospace"
+            android:textColor="@color/wlf_text_primary"
             android:textSize="16sp"
-            android:textStyle="bold"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:text="00:00:00" />
+            app:layout_constraintBottom_toBottomOf="@id/btn_exo_subs"
+            app:layout_constraintStart_toEndOf="@id/btn_exo_audio"
+            app:layout_constraintTop_toTopOf="@id/btn_exo_subs"
+            tools:text="00:23" />
 
-        <TextView
-            android:id="@+id/tv_time_separator"
-            android:layout_width="wrap_content"
+        <!-- Seekbar moderna -->
+        <androidx.media3.ui.DefaultTimeBar
+            android:id="@+id/exo_progress"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:text="·"
-            android:textColor="#B3ffffff"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/exo_position"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:ignore="HardcodedText" />
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            app:bar_height="4dp"
+            app:buffered_color="@color/wlf_seekbar_buffered"
+            app:played_color="@color/wlf_seekbar_progress"
+            app:scrubber_color="@color/wlf_seekbar_thumb"
+            app:scrubber_dragged_size="22dp"
+            app:scrubber_drawable="@drawable/wlf_seekbar_thumb"
+            app:unplayed_color="@color/wlf_seekbar_track"
+            app:layout_constraintBottom_toBottomOf="@id/btn_exo_subs"
+            app:layout_constraintEnd_toStartOf="@id/exo_duration"
+            app:layout_constraintStart_toEndOf="@id/exo_position"
+            app:layout_constraintTop_toTopOf="@id/btn_exo_subs" />
 
+        <!-- Tiempo total -->
         <TextView
             android:id="@+id/exo_duration"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="#B3ffffff"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/tv_time_separator"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:text="00:00:00" />
-
-        <ImageView
-            android:id="@+id/btn_exo_aspect_ratio"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginTop="7dp"
             android:layout_marginEnd="16dp"
-            android:layout_marginBottom="7dp"
-            android:background="@drawable/bg_btn_exoplayer_tv"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:nextFocusLeft="@+id/btn_exo_aspect_ratio"
-            android:nextFocusRight="@+id/exo_settings"
-            android:padding="12dp"
-            android:src="@drawable/exo_styled_controls_aspect_ratio"
-            android:tint="#FFFFFF"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@+id/exo_settings"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:ignore="ContentDescription,PrivateResource,UseAppTint" />
+            android:alpha="0.85"
+            android:fontFamily="monospace"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="16sp"
+            app:layout_constraintBottom_toBottomOf="@id/btn_exo_subs"
+            app:layout_constraintEnd_toStartOf="@id/btn_exo_zoom"
+            app:layout_constraintTop_toTopOf="@id/btn_exo_subs"
+            tools:text="1:45:30" />
 
-
+        <!-- Botón Zoom -->
         <ImageView
-            android:id="@+id/exo_settings"
+            android:id="@+id/btn_exo_zoom"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:layout_marginTop="7dp"
-            android:layout_marginBottom="7dp"
-            android:background="@drawable/bg_btn_exoplayer_tv"
+            android:background="@drawable/wlf_bg_icon_button_selector"
+            android:clickable="true"
+            android:contentDescription="Zoom"
             android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:nextFocusLeft="@+id/btn_exo_aspect_ratio"
-            android:nextFocusRight="@+id/exo_settings"
-            android:padding="12dp"
-            android:src="@drawable/exo_styled_controls_settings"
-            android:tint="#FFFFFF"
+            android:padding="10dp"
+            android:src="@drawable/wlf_ic_zoom"
+            android:tint="@color/wlf_text_primary"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:ignore="ContentDescription,PrivateResource,UseAppTint" />
+            tools:ignore="UseAppTint" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <TextView
-        android:id="@+id/btn_skip_intro"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="32dp"
-        android:layout_marginBottom="16dp"
-        android:background="@drawable/selector_skip_intro_button"
-        android:drawableStart="@drawable/exo_styled_controls_fastforward"
-        android:drawablePadding="8dp"
-        android:focusable="true"
-        android:gravity="center"
-        android:paddingStart="16dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="8dp"
-        android:text="@string/player_skip_intro"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
+    <!-- ===== LOADING SPINNER ===== -->
+    <ProgressBar
+        android:id="@+id/exo_buffering"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:indeterminateDrawable="@drawable/wlf_loading_spinner"
         android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@+id/exo_progress"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
         tools:visibility="visible" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

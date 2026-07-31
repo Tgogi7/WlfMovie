@@ -57,11 +57,14 @@
         app:layout_goneMarginTop="6dp"
         tools:text="2022" />
 
+    <!-- WLFMOVIE: Barra de progreso en la parte inferior de la carátula.
+         Más alta (12dp), transparente el fondo, fucsia el progreso, sin bordes.
+         Ocupa todo el ancho de la carátula. -->
     <ProgressBar
         android:id="@+id/pb_movie_progress"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="0dp"
-        android:layout_height="5dp"
+        android:layout_height="12dp"
         android:progressDrawable="@drawable/wlf_progress_continue_watching"
         app:layout_constraintBottom_toBottomOf="@id/iv_movie_poster"
         app:layout_constraintEnd_toEndOf="@id/iv_movie_poster"

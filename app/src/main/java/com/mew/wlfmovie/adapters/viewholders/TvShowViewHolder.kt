@@ -144,7 +144,7 @@ class TvShowViewHolder(
                 title = "Live",
             ),
         )
-        
+
         val args = Bundle().apply {
             putString("id", tvShow.id)
             putString("title", tvShow.title)
@@ -447,7 +447,7 @@ class TvShowViewHolder(
         }
         binding.tvSwiperTitle.text = tvShow.title
         binding.tvSwiperTvShowLastEpisode.text = if (isIptvProvider()) "" else tvShow.seasons.lastOrNull()?.episodes?.lastOrNull()?.let { "E${it.number}" } ?: context.getString(R.string.tv_show_item_type)
-        
+
         binding.tvSwiperQuality.apply {
             text = tvShow.quality
             isVisible = !text.isNullOrEmpty()
@@ -575,7 +575,7 @@ class TvShowViewHolder(
             isVisible = trailer != null
         }
 
-        
+
         // WLFMOVIE: Botón "Ver temporadas" - navega a SeasonMobileFragment
         binding.btnTvShowSeasons?.apply {
             isVisible = tvShow.seasons.isNotEmpty()
@@ -715,14 +715,42 @@ binding.btnTvShowFavorite.apply {
             isVisible = watchHistory != null
         }
 
+        // WLFMOVIE: Texto "Visto S1 E2 · 23 min" en TV (reemplaza barra).
+        binding.tvTvShowProgressText?.apply {
+            val watchHistory = episodeToWatch?.watchHistory
+            if (watchHistory != null && watchHistory.durationMillis > 0) {
+                val watchedMin = (watchHistory.lastPlaybackPositionMillis / 60000).toInt()
+                val seasonNum = episodeSeason?.number ?: 1
+                val episodeNum = episodeToWatch?.number ?: 1
+                text = "Visto S${seasonNum} E${episodeNum} · ${watchedMin} min"
+                isVisible = true
+            } else {
+                isVisible = false
+            }
+        }
+
+        // WLFMOVIE: Tráiler oculto en TV (igual que en mobile).
         binding.btnTvShowTrailer.apply {
             val trailer = tvShow.trailer
             setOnClickListener {
                 if (trailer != null) handleTrailerClick(trailer)
             }
-            isVisible = trailer != null
+            isVisible = false
         }
 
+        // WLFMOVIE: Botón "Ver temporadas" — igual que displayTvShowMobile.
+        binding.btnTvShowSeasons?.apply {
+            isVisible = tvShow.seasons.isNotEmpty()
+            setOnClickListener {
+                if (tvShow.seasons.size == 1) {
+                    navigateToSeason(tvShow.seasons.first())
+                } else {
+                    showSeasonsDialog()
+                }
+            }
+        }
+
+        // WLFMOVIE: Favorito oculto en TV — lo maneja el overlay del fragment.
         binding.btnTvShowFavorite.apply {
             fun Boolean.drawable() = when (this) {
                 true -> R.drawable.ic_favorite_enable
@@ -754,6 +782,7 @@ binding.btnTvShowFavorite.apply {
             setImageDrawable(
                 ContextCompat.getDrawable(context, tvShow.isFavorite.drawable())
             )
+            isVisible = false
         }
     }
 
@@ -888,15 +917,30 @@ binding.btnTvShowFavorite.apply {
         val dialogView = android.view.LayoutInflater.from(context)
             .inflate(com.mew.wlfmovie.R.layout.wlf_dialog_list, null)
 
-        // WLFMOVIE: Título con botón back si hay múltiples temporadas
+        // WLFMOVIE: Título con flecha ← para volver a temporadas.
+        // Siempre se muestra la flecha cuando hay múltiples temporadas, para
+        // que el usuario sepa dónde está y pueda volver.
         val titleText = dialogView.findViewById<android.widget.TextView>(com.mew.wlfmovie.R.id.tv_dialog_title)
         val seasons = tvShow.seasons
         if (seasons.size > 1) {
-            titleText.text = "← ${season.title ?: "Temporada ${season.number}"}"
+            // WLFMOVIE: flecha + nombre de la temporada, alineado a la izquierda
+            // para que se vea claramente que es un botón de "volver".
+            titleText.text = "←  ${season.title ?: "Temporada ${season.number}"}"
+            titleText.gravity = android.view.Gravity.START
+            titleText.textAlignment = android.view.View.TEXT_ALIGNMENT_VIEW_START
+            titleText.setPadding(32, 16, 32, 16)
+            // WLFMOVIE: Fondo que cambia al recibir foco (morado con borde fucsia).
+            titleText.background = ContextCompat.getDrawable(context, com.mew.wlfmovie.R.drawable.wlf_bg_dialog_back_button)
             titleText.setOnClickListener {
                 dialog.dismiss()
                 showSeasonsDialog()
             }
+            // WLFMOVIE: Hacer el título focusable para que se pueda navegar con D-pad.
+            // Cuando recibe foco, el fondo cambia a morado con borde fucsia.
+            titleText.isFocusable = true
+            titleText.isFocusableInTouchMode = true
+            // WLFMOVIE: Request focus al abrir para que se vea que es focusable.
+            titleText.requestFocus()
         } else {
             titleText.text = season.title ?: "Temporada ${season.number}"
         }

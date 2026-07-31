@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE: Item de serie para carrusel (mobile).
+  Barra de progreso más alta (12dp), transparente el fondo, fucsia el progreso.
+  IMPORTANTE: mantiene los IDs originales (iv_tv_show_poster, tv_tv_show_quality,
+  pb_tv_show_progress, tv_tv_show_last_episode, tv_tv_show_title) para que
+  TvShowViewHolder.displayMobileItem() funcione.
+-->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -57,15 +64,18 @@
         app:layout_goneMarginTop="6dp"
         tools:text="S1 E1" />
 
+    <!-- WLFMOVIE: Barra de progreso en la parte inferior de la carátula.
+         Más alta (12dp), transparente el fondo, fucsia el progreso, sin bordes.
+         Ocupa todo el ancho de la carátula. -->
     <ProgressBar
         android:id="@+id/pb_tv_show_progress"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="0dp"
-        android:layout_height="5dp"
+        android:layout_height="12dp"
         android:progressDrawable="@drawable/wlf_progress_continue_watching"
-        app:layout_constraintBottom_toBottomOf="@id/iv_movie_poster"
-        app:layout_constraintEnd_toEndOf="@id/iv_movie_poster"
-        app:layout_constraintStart_toStartOf="@id/iv_movie_poster"
+        app:layout_constraintBottom_toBottomOf="@id/iv_tv_show_poster"
+        app:layout_constraintEnd_toEndOf="@id/iv_tv_show_poster"
+        app:layout_constraintStart_toStartOf="@id/iv_tv_show_poster"
         tools:progress="80" />
 
     <TextView

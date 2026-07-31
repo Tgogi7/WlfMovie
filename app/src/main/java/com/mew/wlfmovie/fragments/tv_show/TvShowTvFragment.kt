@@ -12,7 +12,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.mew.wlfmovie.R
 import com.mew.wlfmovie.adapters.AppAdapter
 import com.mew.wlfmovie.database.AppDatabase
@@ -22,7 +21,6 @@ import com.mew.wlfmovie.utils.CacheUtils
 import com.mew.wlfmovie.utils.LoggingUtils
 import com.mew.wlfmovie.utils.UserDataCache
 import com.mew.wlfmovie.utils.UserPreferences
-import com.mew.wlfmovie.utils.loadTvShowBanner
 import com.mew.wlfmovie.utils.viewModelsFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -235,9 +233,7 @@ class TvShowTvFragment : Fragment() {
             }
         }
 
-        binding.ivTvShowBanner.loadTvShowBanner(tvShow) {
-            transition(DrawableTransitionOptions.withCrossFade())
-        }
+        binding.ivTvShowBanner.visibility = View.GONE
 
         appAdapter.submitList(listOfNotNull(
             tvShow.apply { itemType = AppAdapter.Type.TV_SHOW_TV },
