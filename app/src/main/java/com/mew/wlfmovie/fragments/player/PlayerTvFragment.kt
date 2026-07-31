@@ -22,6 +22,7 @@ import android.widget.FrameLayout
 import android.webkit.CookieManager
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -72,6 +73,7 @@ import com.mew.wlfmovie.models.TvShow
 import com.mew.wlfmovie.models.Video
 import com.mew.wlfmovie.models.WatchItem
 import com.mew.wlfmovie.providers.SerienStreamProvider
+import androidx.media3.ui.PlayerView
 import com.mew.wlfmovie.ui.PlayerTvView
 import com.mew.wlfmovie.utils.DnsResolver
 import com.mew.wlfmovie.utils.NetworkClient
@@ -155,6 +157,9 @@ class PlayerTvFragment : Fragment() {
 
     private var currentVideo: Video? = null
     private var currentServer: Video.Server? = null
+
+    // WLFMOVIE: Spinner de buffering personalizado (morado-fucsia)
+    private var wlfBufferingSpinner: ProgressBar? = null
     private var waitingForBypass = false
     private var bypassDone = false
     private var activeBypassSession: BypassSession? = null
@@ -814,6 +819,9 @@ class PlayerTvFragment : Fragment() {
 
             updatePlayerHeader()
 
+            // WLFMOVIE: Spinner morado-fucsia (reemplaza el default de ExoPlayer)
+            setupCustomBufferingIndicator()
+
             // WLFMOVIE: Listeners para los botones nuevos del controller rediseñado.
             binding.pvPlayer.controller.binding.btnExoBack?.setOnClickListener {
                 findNavController().navigateUp()
@@ -943,21 +951,22 @@ class PlayerTvFragment : Fragment() {
         }
 
         fun setupEpisodeNavigationButtons() {
-            val btnPrevious = binding.pvPlayer.controller.binding.btnCustomPrev
-            val btnNext = binding.pvPlayer.controller.binding.btnCustomNext
+            // WLFMOVIE: Usar btnNextEpisode (del controller nuevo) en vez de
+            // btnCustomPrev/btnCustomNext (del controller viejo, ya ocultos).
+            val btnNext = binding.pvPlayer.controller.binding.btnNextEpisode
 
             fun handleNavigationButton(
-                button: ImageView,
+                button: TextView?,
                 hasEpisode: () -> Boolean,
                 playEpisode: () -> Unit
             ) {
                 if (!hasEpisode()) {
-                    button.visibility = View.GONE
+                    button?.visibility = View.GONE
                     return
                 }
 
-                button.visibility = View.VISIBLE
-                button.setOnClickListener {
+                button?.visibility = View.VISIBLE
+                button?.setOnClickListener {
                     if (!hasEpisode()) return@setOnClickListener
 
                     val videoType = args.videoType
@@ -1022,16 +1031,33 @@ class PlayerTvFragment : Fragment() {
                 }
             }
 
-            handleNavigationButton(
-                btnPrevious,
-                EpisodeManager::hasPreviousEpisode,
-                viewModel::playPreviousEpisode
-            )
+            // WLFMOVIE: Solo botón "Siguiente" (no hay botón "Anterior" en el controller nuevo).
             handleNavigationButton(
                 btnNext,
                 EpisodeManager::hasNextEpisode,
                 ::playNextEpisodeAcrossSeasons
             )
+        }
+
+        // WLFMOVIE: Spinner de buffering personalizado (morado-fucsia)
+        private fun setupCustomBufferingIndicator() {
+            try {
+                binding.pvPlayer.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                val spinner = ProgressBar(requireContext()).apply {
+                    id = View.generateViewId()
+                    indeterminateDrawable = ContextCompat.getDrawable(requireContext(), R.drawable.wlf_loading_spinner)
+                    visibility = View.GONE
+                    layoutParams = android.widget.FrameLayout.LayoutParams(
+                        64.dp(requireContext()),
+                        64.dp(requireContext()),
+                        android.view.Gravity.CENTER
+                    )
+                }
+                (binding.pvPlayer as? ViewGroup)?.addView(spinner)
+                wlfBufferingSpinner = spinner
+            } catch (e: Exception) {
+                Log.e("WlfMovie", "Error setup spinner TV: ${e.message}")
+            }
         }
 
         private fun decodeBase64Uri(uri: String): String? {
@@ -1219,6 +1245,9 @@ class PlayerTvFragment : Fragment() {
             player.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     super.onPlaybackStateChanged(playbackState)
+
+                    // WLFMOVIE: Actualizar spinner de buffering
+                    wlfBufferingSpinner?.visibility = if (playbackState == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
 
                     if (playbackState == Player.STATE_READY) {
                         binding.pvPlayer.controller.binding.exoPlayPause.nextFocusDownId = -1

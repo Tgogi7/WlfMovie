@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- WLFMOVIE: Tint del icono/texto del nav lateral TV. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="#FFF0ABFC" />
+    <item android:state_selected="true" android:color="#FFE879F9" />
+    <item android:color="#FFB8B8D1" />
+</selector>

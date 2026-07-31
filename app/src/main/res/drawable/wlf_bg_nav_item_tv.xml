@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE: Fondo del item del nav lateral TV.
+  Estado focused: cápsula horizontal (esquinas redondeadas arriba/abajo/izq/der)
+  con fondo morado semi-transparente y borde fucsia brillante.
+  Estado normal: transparente.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#557C3AED" />
+            <corners android:radius="24dp" />
+            <stroke android:width="2dp" android:color="#FFE879F9" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#337C3AED" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+</selector>

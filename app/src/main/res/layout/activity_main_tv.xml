@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE: Activity principal TV rediseñada.
+  - Fondo morado oscuro (wlf_bg_details_fragment).
+  - Nav lateral con fondo morado, items con estilo cápsula WlfMovie.
+  - Overlay de splash.
+-->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/app_background_color"
+    android:background="@drawable/wlf_bg_details_fragment"
     tools:context=".activities.main.MainTvActivity"
     tools:deviceIds="tv"
     tools:ignore="MergeRootFrame">
@@ -15,7 +21,7 @@
         android:layout_height="0dp"
         android:paddingStart="10dp"
         android:paddingEnd="10dp"
-        android:background="?attr/app_background_color"
+        android:background="@drawable/wlf_bg_details_fragment"
         app:headerLayout="@layout/content_header_menu_main_tv"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -29,7 +35,7 @@
         android:name="androidx.navigation.fragment.NavHostFragment"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:background="?attr/app_background_color"
+        android:background="@drawable/wlf_bg_details_fragment"
         app:defaultNavHost="true"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -37,12 +43,11 @@
         app:layout_constraintTop_toTopOf="parent"
         app:navGraph="@navigation/nav_main_graph_tv" />
 
-    <!-- Overlay per mostrare la "S" del logo durante il caricamento -->
     <ImageView
         android:id="@+id/iv_splash_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="?android:attr/windowBackground"
+        android:background="@drawable/wlf_bg_details_fragment"
         android:clickable="true"
         android:focusable="true"
         android:visibility="visible"

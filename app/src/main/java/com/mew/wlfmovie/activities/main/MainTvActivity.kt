@@ -27,6 +27,7 @@ import com.mew.wlfmovie.providers.IptvProvider
 import com.mew.wlfmovie.providers.Provider
 import com.mew.wlfmovie.utils.AppLanguageManager
 import com.mew.wlfmovie.utils.ThemeManager
+import androidx.core.content.ContextCompat
 import com.mew.wlfmovie.utils.UserPreferences
 import com.mew.wlfmovie.utils.getCurrentFragment
 import kotlinx.coroutines.launch
@@ -116,10 +117,9 @@ class MainTvActivity : FragmentActivity() {
                     .into(header.ivNavigationHeaderIcon)
                 header.tvNavigationHeaderTitle.text = "WlfMovie"
                 header.tvNavigationHeaderSubtitle.text = getString(R.string.main_menu_settings)
-                val palette = ThemeManager.palette(UserPreferences.selectedTheme)
-                header.tvNavigationHeaderTitle.setTextColor(palette.tvHeaderPrimary)
-                header.tvNavigationHeaderSubtitle.setTextColor(palette.tvHeaderSecondary)
-                setBackgroundColor(palette.tvNavBackground)
+                // WLFMOVIE: Colores fijos WlfMovie (no dependen del tema).
+                header.tvNavigationHeaderTitle.setTextColor(0xFFFFFFFF.toInt())
+                header.tvNavigationHeaderSubtitle.setTextColor(0xFFB8B8D1.toInt())
 
                 setOnOpenListener {
                     header.tvNavigationHeaderTitle.visibility = View.VISIBLE
@@ -141,7 +141,7 @@ class MainTvActivity : FragmentActivity() {
             // WLFMOVIE: misma logica que mobile — mostrar nav lateral en
             // destinos top-level. R.id.lists se anadira en la sub-fase 9.7.
             when (destination.id) {
-                R.id.search, R.id.home, R.id.movies, R.id.tv_shows, R.id.settings -> {
+                R.id.search, R.id.home, R.id.movies, R.id.tv_shows, R.id.lists -> {
                     binding.navMain.visibility = View.VISIBLE
                     updateNavigationVisibility()
                 }
@@ -176,7 +176,7 @@ class MainTvActivity : FragmentActivity() {
             override fun handleOnBackPressed() {
                 when (navController.currentDestination?.id) {
                     R.id.home -> if (binding.navMain.hasFocus()) finish() else binding.navMain.requestFocus()
-                    R.id.settings, R.id.search, R.id.movies, R.id.tv_shows -> {
+                    R.id.search, R.id.movies, R.id.tv_shows, R.id.lists -> {
                         navigateToProviderHome(navController)
                         binding.navMain.requestFocus()
                     }
@@ -220,15 +220,16 @@ class MainTvActivity : FragmentActivity() {
     }
 
     private fun applyThemeNavigationChrome() {
-        val palette = ThemeManager.palette(UserPreferences.selectedTheme)
-        window.statusBarColor = palette.systemBar
-        window.navigationBarColor = palette.systemBar
-        binding.navMain.setBackgroundColor(palette.tvNavBackground)
+        // WLFMOVIE: Fondo morado fijo para el nav lateral (no depende del tema).
+        val navBg = ContextCompat.getDrawable(this, R.drawable.wlf_bg_details_fragment)
+        window.statusBarColor = 0x00000000
+        window.navigationBarColor = 0x00000000
+        binding.navMain.background = navBg
         binding.navMain.headerView?.let { headerView ->
-            headerView.setBackgroundColor(palette.tvNavBackground)
+            headerView.background = navBg
             val header = ContentHeaderMenuMainTvBinding.bind(headerView)
-            header.tvNavigationHeaderTitle.setTextColor(palette.tvHeaderPrimary)
-            header.tvNavigationHeaderSubtitle.setTextColor(palette.tvHeaderSecondary)
+            header.tvNavigationHeaderTitle.setTextColor(0xFFFFFFFF.toInt())
+            header.tvNavigationHeaderSubtitle.setTextColor(0xFFB8B8D1.toInt())
         }
     }
 

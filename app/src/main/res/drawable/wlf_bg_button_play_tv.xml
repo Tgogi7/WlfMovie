@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- WLFMOVIE TV: Botón PLAY/PAUSE. Foco: borde BLANCO grueso (oval). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <gradient android:angle="135" android:startColor="#A78BFA" android:endColor="#F0ABFC" android:type="linear" />
+            <stroke android:width="3dp" android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <gradient android:angle="135" android:startColor="#7C3AED" android:centerColor="#5B21B6" android:endColor="#E879F9" android:type="linear" />
+            <stroke android:width="4dp" android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <gradient android:angle="135" android:startColor="#7C3AED" android:centerColor="#5B21B6" android:endColor="#E879F9" android:type="linear" />
+            <stroke android:width="2dp" android:color="#99F0ABFC" />
+        </shape>
+    </item>
+</selector>

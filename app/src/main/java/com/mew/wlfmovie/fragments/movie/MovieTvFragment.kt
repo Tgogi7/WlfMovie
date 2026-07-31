@@ -12,7 +12,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.mew.wlfmovie.R
 import com.mew.wlfmovie.adapters.AppAdapter
 import com.mew.wlfmovie.database.AppDatabase
@@ -21,7 +20,6 @@ import com.mew.wlfmovie.models.Movie
 import com.mew.wlfmovie.utils.LoggingUtils
 import com.mew.wlfmovie.utils.UserDataCache
 import com.mew.wlfmovie.utils.UserPreferences
-import com.mew.wlfmovie.utils.loadMovieBanner
 import com.mew.wlfmovie.utils.viewModelsFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -214,9 +212,10 @@ class MovieTvFragment : Fragment() {
             }
         }
 
-        binding.ivMovieBanner.loadMovieBanner(movie) {
-            transition(DrawableTransitionOptions.withCrossFade())
-        }
+        // WLFMOVIE: Ocultar el backdrop dinámico — el fondo morado fijo
+        // lo da el fragment_movie_tv.xml (wlf_bg_details_fragment).
+        // El backdrop se muestra en el content_movie_tv.xml (iv_movie_poster).
+        binding.ivMovieBanner.visibility = View.GONE
 
         appAdapter.submitList(listOfNotNull(
             movie.apply { itemType = AppAdapter.Type.MOVIE_TV },

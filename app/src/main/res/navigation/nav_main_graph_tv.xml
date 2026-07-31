@@ -224,4 +224,10 @@
         android:id="@+id/settings"
         android:name="com.mew.wlfmovie.fragments.settings.SettingsTvFragment"
         android:label="fragment_settings_tv" />
+
+    <!-- WLFMOVIE: Lists TV -->
+    <fragment
+        android:id="@+id/lists"
+        android:name="com.mew.wlfmovie.fragments.lists.ListsTvFragment"
+        android:label="fragment_lists_tv" />
 </navigation>
