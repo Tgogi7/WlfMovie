@@ -3,24 +3,23 @@ package com.mew.wlfmovie.fragments.search
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.KeyEvent
-import android.view.animation.AlphaAnimation
-import android.view.animation.Animation
 import android.view.inputmethod.EditorInfo
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.leanback.widget.OnChildViewHolderSelectedListener
 import androidx.recyclerview.widget.RecyclerView
 import com.mew.wlfmovie.R
 import com.mew.wlfmovie.adapters.AppAdapter
 import com.mew.wlfmovie.database.AppDatabase
 import com.mew.wlfmovie.databinding.FragmentSearchTvBinding
+import com.mew.wlfmovie.fragments.movies.GenreChipTvAdapter
 import com.mew.wlfmovie.models.Category
 import com.mew.wlfmovie.models.Genre
 import com.mew.wlfmovie.models.Movie
@@ -31,10 +30,11 @@ import com.mew.wlfmovie.utils.UserPreferences
 import com.mew.wlfmovie.utils.VoiceRecognitionHelper
 import com.mew.wlfmovie.utils.hideKeyboard
 import com.mew.wlfmovie.utils.viewModelsFactory
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.navigation.fragment.findNavController
 import com.mew.wlfmovie.providers.Provider
-import com.mew.wlfmovie.providers.IptvProvider
 
 class SearchTvFragment : Fragment() {
 
@@ -44,13 +44,11 @@ class SearchTvFragment : Fragment() {
 
     private val database by lazy { AppDatabase.getInstance(requireContext()) }
     private val viewModel by viewModelsFactory { SearchViewModel(database) }
-    private var isGlobalSearchChecked: Boolean = false
     private var currentGridColumns: Int = 1
 
     private val appAdapter by lazy {
         AppAdapter().apply {
             onMovieClickListener = { movie ->
-
                 if (movie.providerName != UserPreferences.currentProvider?.name) {
                     UserPreferences.currentProvider = Provider.providers.keys.find { it.name == movie.providerName }
                     Toast.makeText(requireContext(), getString(R.string.switching_to_provider, movie.providerName), Toast.LENGTH_SHORT).show()
@@ -60,7 +58,6 @@ class SearchTvFragment : Fragment() {
                 )
             }
             onTvShowClickListener = { tvShow ->
-
                 if (tvShow.providerName != UserPreferences.currentProvider?.name) {
                     UserPreferences.currentProvider = Provider.providers.keys.find { it.name == tvShow.providerName }
                     Toast.makeText(requireContext(), getString(R.string.switching_to_provider, tvShow.providerName), Toast.LENGTH_SHORT).show()
@@ -78,6 +75,11 @@ class SearchTvFragment : Fragment() {
 
     private lateinit var voiceHelper: VoiceRecognitionHelper
 
+    // WLFMOVIE: chips de géneros
+    private var genreChipAdapter: GenreChipTvAdapter? = null
+    private var selectedGenreId: String? = "all" // "Todos" por defecto
+    private var searchJob: Job? = null // debounce auto-search
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
@@ -92,9 +94,8 @@ class SearchTvFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
-
                 when (state) {
-                    is State.Searching, is State.GlobalSearching -> {
+                    is State.Searching -> {
                         binding.isLoading.apply {
                             root.visibility = View.VISIBLE
                             pbIsLoading.visibility = View.VISIBLE
@@ -110,11 +111,11 @@ class SearchTvFragment : Fragment() {
                         binding.vgvSearch.visibility = View.VISIBLE
                         binding.isLoading.root.visibility = View.GONE
                     }
+                    is State.GlobalSearching -> {
+                        // WLFMOVIE: Búsqueda global eliminada, no debería llegar aquí.
+                    }
                     is State.SuccessGlobalSearching -> {
-                        displayGlobalSearch(state.providerResults)
-                        appAdapter.isLoading = false
-                        binding.vgvSearch.visibility = View.VISIBLE
-                        binding.isLoading.root.visibility = View.GONE
+                        // WLFMOVIE: Búsqueda global eliminada, no debería llegar aquí.
                     }
                     is State.FailedSearching -> {
                         val code = (state.error as? retrofit2.HttpException)?.code()
@@ -156,40 +157,26 @@ class SearchTvFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         voiceHelper.stopRecognition()
+        // WLFMOVIE: Resetear el genreChipAdapter para que se recreé al volver
+        // al fragment (después de entrar a una carátula y devolverse).
+        genreChipAdapter = null
         _binding = null
     }
 
     private fun submitSearch(): Boolean {
         val query = binding.etSearch.text?.toString().orEmpty()
         hideKeyboard()
-
-        if (isGlobalSearchChecked) {
-            if (query.isBlank()) {
-                Toast.makeText(requireContext(), getString(R.string.search_empty_query), Toast.LENGTH_SHORT).show()
-                return true
-            }
-            val currentLanguage = UserPreferences.currentProvider?.language ?: "es"
-            viewModel.searchGlobal(query, currentLanguage)
-        } else {
-            viewModel.search(query)
-        }
+        viewModel.search(query)
         return true
     }
 
     private fun initializeSearch() {
-        val isIptv = UserPreferences.currentProvider is IptvProvider
-        val hintStringRes = if (isIptv) R.string.search_input_hint_iptv else R.string.search_input_hint
-        binding.etSearch.hint = getString(hintStringRes)
+        binding.etSearch.hint = getString(R.string.search_input_hint)
 
-        binding.llGlobalSearch.nextFocusUpId = binding.etSearch.id
-        binding.vgvSearch.nextFocusUpId = binding.llGlobalSearch.id
-
-        binding.llGlobalSearch.setOnClickListener {
-            isGlobalSearchChecked = !isGlobalSearchChecked
-            binding.ivGlobalSearchSwitch.setImageResource(
-                if (isGlobalSearchChecked) R.drawable.ic_switch_on else R.drawable.ic_switch_off
-            )
-        }
+        // WLFMOVIE: Navegación D-pad configurada:
+        // et_search → rv_genres → vgv_search
+        binding.rvGenres.nextFocusUpId = binding.clSearch.id
+        binding.vgvSearch.nextFocusUpId = binding.rvGenres.id
 
         binding.etSearch.apply {
             setOnEditorActionListener { _, actionId, event ->
@@ -228,23 +215,27 @@ class SearchTvFragment : Fragment() {
                 false
             }
 
+            // WLFMOVIE: Auto-search con debounce de 300ms.
             addTextChangedListener(object : TextWatcher {
                 override fun afterTextChanged(s: Editable?) {
-                    if (s.isNullOrBlank()) {
-                                val isIptv = UserPreferences.currentProvider is IptvProvider
-        val hintStringRes = if (isIptv) R.string.search_input_hint_iptv else R.string.search_input_hint
-        binding.etSearch.hint = getString(hintStringRes)
+                    val query = s?.toString()?.trim() ?: ""
+                    if (query.isBlank()) {
+                        // WLFMOVIE: Si está vacío, mostrar "Todos"
+                        selectedGenreId = "all"
+                        genreChipAdapter?.setSelected("all")
+                        viewModel.search("")
+                    } else {
+                        // WLFMOVIE: Auto-search con debounce
+                        searchJob?.cancel()
+                        searchJob = viewLifecycleOwner.lifecycleScope.launch {
+                            delay(300)
+                            viewModel.search(query)
+                        }
                     }
                 }
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             })
-        }
-
-        val blink = AlphaAnimation(1f, 0.3f).apply {
-            duration = 500
-            repeatCount = Animation.INFINITE
-            repeatMode = Animation.REVERSE
         }
 
         voiceHelper = VoiceRecognitionHelper(
@@ -257,12 +248,14 @@ class SearchTvFragment : Fragment() {
             onError = { msg ->
                 Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
                 binding.btnSearchVoice.clearAnimation()
-                        val isIptv = UserPreferences.currentProvider is IptvProvider
-        val hintStringRes = if (isIptv) R.string.search_input_hint_iptv else R.string.search_input_hint
-        binding.etSearch.hint = getString(hintStringRes)
+                binding.etSearch.hint = getString(R.string.search_input_hint)
             },
             onListeningStateChanged = { isListening ->
-                binding.btnSearchVoice.startAnimation(blink)
+                binding.btnSearchVoice.startAnimation(android.view.animation.AlphaAnimation(1f, 0.3f).apply {
+                    duration = 500
+                    repeatCount = android.view.animation.Animation.INFINITE
+                    repeatMode = android.view.animation.Animation.REVERSE
+                })
                 binding.etSearch.hint = getString(R.string.voice_prompt)
             }
         )
@@ -273,7 +266,7 @@ class SearchTvFragment : Fragment() {
             setOnClickListener { if (!voiceHelper.isListening) voiceHelper.startWithPermissionCheck() }
         }
 
-        listOf(binding.btnSearchClear, binding.btnSearchVoice, binding.llGlobalSearch).forEach { view ->
+        listOf(binding.btnSearchClear, binding.btnSearchVoice).forEach { view ->
             view.setOnKeyListener { _, keyCode, event ->
                 if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_BACK) {
                     focusSearchContent()
@@ -285,9 +278,7 @@ class SearchTvFragment : Fragment() {
 
         binding.btnSearchClear.setOnClickListener {
             binding.etSearch.setText("")
-                    val isIptv = UserPreferences.currentProvider is IptvProvider
-        val hintStringRes = if (isIptv) R.string.search_input_hint_iptv else R.string.search_input_hint
-        binding.etSearch.hint = getString(hintStringRes)
+            binding.etSearch.hint = getString(R.string.search_input_hint)
             viewModel.search("")
         }
 
@@ -296,16 +287,20 @@ class SearchTvFragment : Fragment() {
                 stateRestorationPolicy = RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY
             }
             setItemSpacing(resources.getDimension(R.dimen.search_spacing).toInt())
-            addOnChildViewHolderSelectedListener(object : OnChildViewHolderSelectedListener() {
+
+            // WLFMOVIE: Fix para subir desde carátulas a pastillas.
+            // Leanback ignora el nextFocusUp del VerticalGridView, hay que
+            // setearlo en cada item. Lo hacemos cuando el item recibe foco.
+            addOnChildViewHolderSelectedListener(object : androidx.leanback.widget.OnChildViewHolderSelectedListener() {
                 override fun onChildViewHolderSelected(
                     parent: RecyclerView,
                     child: RecyclerView.ViewHolder?,
                     position: Int,
                     subposition: Int,
                 ) {
-                    child?.itemView?.nextFocusUpId =
-                        if (position in 0 until currentGridColumns) binding.llGlobalSearch.id
-                        else View.NO_ID
+                    // Setear nextFocusUpId en el item para que al pulsar arriba
+                    // vaya a las pastillas (rv_genres).
+                    child?.itemView?.nextFocusUpId = binding.rvGenres.id
                 }
             })
         }
@@ -319,59 +314,73 @@ class SearchTvFragment : Fragment() {
             hasResults -> {
                 binding.vgvSearch.requestFocus()
             }
-            binding.llGlobalSearch.visibility == View.VISIBLE -> {
-                binding.llGlobalSearch.requestFocus()
-            }
             else -> false
         }
     }
 
     private fun displaySearch(list: List<AppAdapter.Item>, hasMore: Boolean) {
+        val genres = list.filterIsInstance<Genre>()
+        val shows = list.filterNot { it is Genre }
+
+        // WLFMOVIE: Setup chips de géneros (con "Todos" al inicio).
+        if (genres.isNotEmpty()) {
+            val allGenre = Genre(id = "all", name = "Todos")
+            setupGenreChips(listOf(allGenre) + genres)
+        }
+
         currentGridColumns = if (viewModel.query == "") 5 else 6
         binding.vgvSearch.setNumColumns(currentGridColumns)
 
-        appAdapter.submitList(list.onEach {
+        appAdapter.submitList(shows.onEach {
             when (it) {
-                is Genre -> it.itemType = AppAdapter.Type.GENRE_GRID_TV_ITEM
                 is Movie -> it.itemType = AppAdapter.Type.MOVIE_GRID_TV_ITEM
                 is TvShow -> it.itemType = AppAdapter.Type.TV_SHOW_GRID_TV_ITEM
             }
         })
 
-        if (hasMore && viewModel.query != "") {
-            appAdapter.setOnLoadMoreListener { viewModel.loadMore() }
-        } else {
-            appAdapter.setOnLoadMoreListener(null)
+        // WLFMOVIE: Scroll infinito.
+        // - Si hay query de texto → loadMore() del ViewModel
+        // - Si hay género seleccionado → loadMoreGenre() del ViewModel
+        // - Si está en "Todos" (query vacío, sin género) → no hay scroll infinito
+        //   (ya trae populares + géneros, no hay paginación de populares en SearchViewModel)
+        when {
+            viewModel.query != "" && hasMore -> {
+                appAdapter.setOnLoadMoreListener { viewModel.loadMore() }
+            }
+            selectedGenreId != null && selectedGenreId != "all" && hasMore -> {
+                appAdapter.setOnLoadMoreListener { viewModel.loadMoreGenre() }
+            }
+            else -> {
+                appAdapter.setOnLoadMoreListener(null)
+            }
         }
     }
 
-    private fun displayGlobalSearch(providerResults: List<ProviderResult>) {
-        val categories = providerResults.map { providerResult ->
-            val headerTitle = when (val state = providerResult.state) {
-                is ProviderResult.State.Loading -> "${providerResult.provider.name} - ${getString(R.string.searching)}"
-                is ProviderResult.State.Error -> "${providerResult.provider.name} - ${getString(R.string.search_error)}"
-                is ProviderResult.State.Success -> {
-                    val count = state.results.size
-                    val resultText = if (count == 1) getString(R.string.result) else getString(R.string.results)
-                    "${providerResult.provider.name} - $count $resultText"
+    // WLFMOVIE: Setup chips de géneros para TV.
+    private fun setupGenreChips(genres: List<Genre>) {
+        if (genreChipAdapter == null) {
+            genreChipAdapter = GenreChipTvAdapter(genres) { genre ->
+                if (genre.id == "all") {
+                    selectedGenreId = "all"
+                    genreChipAdapter?.setSelected("all")
+                    viewModel.search("")
+                } else {
+                    if (selectedGenreId == genre.id) {
+                        selectedGenreId = "all"
+                        genreChipAdapter?.setSelected("all")
+                        viewModel.search("")
+                    } else {
+                        selectedGenreId = genre.id
+                        genreChipAdapter?.setSelected(selectedGenreId)
+                        viewModel.searchByGenre(genre.id)
+                    }
                 }
+                Log.d("WlfMovie-SearchTv", "Chip click: ${genre.name} → selectedGenreId=$selectedGenreId")
             }
-
-            val items = (providerResult.state as? ProviderResult.State.Success)?.results?.onEach {
-                when (it) {
-                    is Movie -> it.itemType = AppAdapter.Type.MOVIE_TV_ITEM
-                    is TvShow -> it.itemType = AppAdapter.Type.TV_SHOW_TV_ITEM
-                }
-            } ?: emptyList()
-
-            Category(name = headerTitle, list = items).apply {
-                itemType = AppAdapter.Type.CATEGORY_TV_ITEM
+            binding.rvGenres.apply {
+                adapter = genreChipAdapter
             }
         }
-
-        currentGridColumns = 1
-        binding.vgvSearch.setNumColumns(currentGridColumns) // La lista de categorías es una sola columna vertical
-        appAdapter.submitList(categories)
-        appAdapter.setOnLoadMoreListener(null)
+        genreChipAdapter?.setSelected("all")
     }
 }

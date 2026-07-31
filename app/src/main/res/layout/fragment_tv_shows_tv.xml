@@ -1,15 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE: TV Shows TV — Paso 3.
+  Grid simple (estado 9.2) + chips de géneros arriba.
+  Igual que fragment_movies_tv.xml pero para series.
+-->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/wlf_bg_details_fragment"
     tools:context=".fragments.tv_shows.TvShowsTvFragment">
 
+    <!-- Chips de géneros (1 fila horizontal).
+         RecyclerView normal (NO HorizontalGridView de Leanback) para evitar
+         crash nativo por conflicto de foco entre dos Leanback GridViews. -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/hgv_genres"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:clipToPadding="false"
+        android:focusable="true"
+        android:orientation="horizontal"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Grid de carátulas (estado 9.2, NO tocado).
+         Ahora empieza debajo de los chips. -->
     <androidx.leanback.widget.VerticalGridView
         android:id="@+id/vgv_tv_shows"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:layout_marginTop="8dp"
         android:clipChildren="false"
         android:clipToPadding="false"
         android:padding="@dimen/tv_shows_spacing"
@@ -18,7 +45,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/hgv_genres"
         app:numberOfColumns="6"
         tools:listitem="@layout/item_tv_show_grid" />
 
@@ -30,6 +57,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/hgv_genres" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

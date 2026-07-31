@@ -623,12 +623,13 @@ binding.btnTvShowFavorite.apply {
     }
 
     private fun displayTvShowTv(binding: ContentTvShowTvBinding) {
+        // WLFMOVIE: Cargar backdrop (banner horizontal) en vez de poster vertical.
         binding.ivTvShowPoster.run {
-            loadTvShowPoster(tvShow) {
+            loadTvShowBanner(tvShow) {
                 fallback(R.drawable.glide_fallback_cover)
                 transition(DrawableTransitionOptions.withCrossFade())
             }
-            visibility = if (tvShow.poster.isNullOrEmpty()) View.GONE else View.VISIBLE
+            visibility = if (tvShow.banner.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
         binding.tvTvShowTitle.text = tvShow.title
 

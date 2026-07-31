@@ -749,12 +749,13 @@ class MovieViewHolder(
     }
 
     private fun displayMovieTv(binding: ContentMovieTvBinding) {
+        // WLFMOVIE: Cargar backdrop (banner horizontal) en vez de poster vertical.
         binding.ivMoviePoster.run {
-            loadMoviePoster(movie) {
+            loadMovieBanner(movie) {
                 transition(DrawableTransitionOptions.withCrossFade())
             }
             visibility = when {
-                movie.poster.isNullOrEmpty() -> View.GONE
+                movie.banner.isNullOrEmpty() -> View.GONE
                 else -> View.VISIBLE
             }
         }

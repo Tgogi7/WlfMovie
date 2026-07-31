@@ -1,19 +1,18 @@
 package com.mew.wlfmovie.fragments.home
 
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.mew.wlfmovie.R
 import com.mew.wlfmovie.adapters.AppAdapter
 import com.mew.wlfmovie.database.AppDatabase
@@ -22,14 +21,11 @@ import com.mew.wlfmovie.models.Category
 import com.mew.wlfmovie.models.Episode
 import com.mew.wlfmovie.models.Movie
 import com.mew.wlfmovie.models.TvShow
-import kotlinx.coroutines.Runnable
 import com.mew.wlfmovie.utils.CacheUtils
-import kotlinx.coroutines.launch
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import com.mew.wlfmovie.utils.LoggingUtils
-import com.mew.wlfmovie.utils.UserPreferences
 import com.mew.wlfmovie.utils.ProviderChangeNotifier
+import com.mew.wlfmovie.utils.UserPreferences
+import kotlinx.coroutines.launch
 
 class HomeTvFragment : Fragment() {
 
@@ -50,9 +46,6 @@ class HomeTvFragment : Fragment() {
     }
 
     private val appAdapter = AppAdapter()
-
-    private val swiperHandler = Handler(Looper.getMainLooper())
-    private var isBackgroundPinned = false
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -96,7 +89,11 @@ class HomeTvFragment : Fragment() {
                         if (code == 409 && !hasAutoCleared409) {
                             hasAutoCleared409 = true
                             CacheUtils.clearAppCache(requireContext())
-                            android.widget.Toast.makeText(requireContext(), getString(com.mew.wlfmovie.R.string.clear_cache_done_409), android.widget.Toast.LENGTH_SHORT).show()
+                            android.widget.Toast.makeText(
+                                requireContext(),
+                                getString(com.mew.wlfmovie.R.string.clear_cache_done_409),
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
                             viewModel.getHome()
                             return@collect
                         }
@@ -111,7 +108,11 @@ class HomeTvFragment : Fragment() {
                             btnIsLoadingRetry.setOnClickListener { viewModel.getHome() }
                             btnIsLoadingClearCache.setOnClickListener {
                                 CacheUtils.clearAppCache(requireContext())
-                                android.widget.Toast.makeText(requireContext(), getString(com.mew.wlfmovie.R.string.clear_cache_done), android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(
+                                    requireContext(),
+                                    getString(com.mew.wlfmovie.R.string.clear_cache_done),
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
                                 viewModel.getHome()
                             }
                             btnIsLoadingErrorDetails.setOnClickListener {
@@ -124,22 +125,6 @@ class HomeTvFragment : Fragment() {
             }
         }
     }
-    
-    override fun onStart() {
-        super.onStart()
-        // Riavvia il carosello se i dati sono già stati caricati e il fragment è visibile
-        appAdapter.items
-            .filterIsInstance<Category>()
-            .firstOrNull { it.name == Category.FEATURED }
-            ?.let {
-                resetSwiperSchedule()
-            }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        swiperHandler.removeCallbacksAndMessages(null)
-    }
 
     override fun onDestroyView() {
         super.onDestroyView()
@@ -147,32 +132,15 @@ class HomeTvFragment : Fragment() {
         _binding = null
     }
 
-
-    private var swiperHasLastFocus: Boolean = false
-    fun updateBackground(uri: String?, swiperHasFocus: Boolean? = false) {
-        if (swiperHasFocus == null && isBackgroundPinned) return
-        if (swiperHasFocus == null && !swiperHasLastFocus) return
-
-        Glide.with(requireContext())
-            .load(uri)
-            .transition(DrawableTransitionOptions.withCrossFade())
-            .into(binding.ivHomeBackground)
-        swiperHasLastFocus = swiperHasFocus ?: swiperHasLastFocus
-    }
-
-    fun pinBackground(uri: String?) {
-        isBackgroundPinned = true
-        Glide.with(requireContext())
-            .load(uri)
-            .transition(DrawableTransitionOptions.withCrossFade())
-            .into(binding.ivHomeBackground)
-    }
-
-    fun releasePinnedBackground() {
-        if (!isBackgroundPinned) return
-        isBackgroundPinned = false
-        syncFeaturedBackground()
-    }
+    // WLFMOVIE: Metodos vacios para compatibilidad con CategoryViewHolder.
+    // CategoryViewHolder.displayTvSwiper() llama a estos metodos cuando
+    // muestra un CATEGORY_TV_SWIPER, pero nosotros eliminamos el carousel
+    // FEATURED del home TV. Como nunca se muestra un swiper, estos metodos
+    // nunca se llaman en la practica — pero deben existir para que compile.
+    fun updateBackground(uri: String?, swiperHasFocus: Boolean? = false) {}
+    fun pinBackground(uri: String?) {}
+    fun releasePinnedBackground() {}
+    fun resetSwiperSchedule() {}
 
     private fun initializeHome() {
         binding.vgvHome.apply {
@@ -182,34 +150,30 @@ class HomeTvFragment : Fragment() {
             setItemSpacing(resources.getDimension(R.dimen.home_spacing).toInt() * 2)
         }
 
+        // WLFMOVIE: Logo WlfMovie fijo arriba (igual que mobile pero más grande).
+        // Al click, scroll al inicio del home.
+        binding.ivProviderLogo.apply {
+            Glide.with(context)
+                .load(R.drawable.ic_wlfmovie_logo)
+                .error(R.drawable.ic_provider_default_logo)
+                .fitCenter()
+                .into(this)
+
+            setOnClickListener {
+                binding.vgvHome.smoothScrollToPosition(0)
+            }
+        }
+
+        // WLFMOVIE: Asegurar que el fondo dinámico esté oculto — usamos
+        // el fondo morado del layout (wlf_bg_details_fragment).
+        binding.ivHomeBackground.visibility = View.GONE
+
         binding.root.requestFocus()
     }
 
     private fun displayHome(categories: List<Category>) {
-        categories
-            .find { it.name == Category.FEATURED }
-            ?.also {
-                val index = appAdapter.items
-                    .filterIsInstance<Category>()
-                    .find { item -> item.name == Category.FEATURED }
-                    ?.selectedIndex
-                    ?: 0
-                it.selectedIndex = index
-                
-                // Initialize background with first item from featured category immediately
-                val firstItem = it.list.getOrNull(index)
-                val poster = when (firstItem) {
-                    is Movie -> firstItem.banner
-                    is TvShow -> firstItem.banner
-                    else -> null
-                }
-                // Force background update without waiting for focus
-                if (poster != null) {
-                    updateBackground(poster, null)
-                }
-                
-                resetSwiperSchedule()
-            }
+        // WLFMOVIE: Eliminada la categoria FEATURED (carousel auto-scroll).
+        // El home muestra solo carruseles horizontales, igual que mobile.
 
         categories
             .find { it.name == Category.CONTINUE_WATCHING }
@@ -231,85 +195,25 @@ class HomeTvFragment : Fragment() {
             .find { it.name == Category.FAVORITE_TV_SHOWS }
             ?.also { it.name = getString(R.string.home_favorite_tv_shows) }
 
+        // WLFMOVIE: Filtrar FEATURED (no lo mostramos en TV, igual que mobile).
+        val filteredCategories = categories.filter {
+            it.name != Category.FEATURED && it.list.isNotEmpty()
+        }
+
         appAdapter.submitList(
-            categories
-                .filter { it.list.isNotEmpty() }
-                .onEach { category ->
-                    if (category.name != getString(R.string.home_continue_watching)) {
-                        category.list.forEach { show ->
-                            when (show) {
-                                is Episode -> show.itemType = AppAdapter.Type.EPISODE_TV_ITEM
-                                is Movie -> show.itemType = AppAdapter.Type.MOVIE_TV_ITEM
-                                is TvShow -> show.itemType = AppAdapter.Type.TV_SHOW_TV_ITEM
-                            }
+            filteredCategories.onEach { category ->
+                if (category.name != getString(R.string.home_continue_watching)) {
+                    category.list.forEach { show ->
+                        when (show) {
+                            is Episode -> show.itemType = AppAdapter.Type.EPISODE_TV_ITEM
+                            is Movie -> show.itemType = AppAdapter.Type.MOVIE_TV_ITEM
+                            is TvShow -> show.itemType = AppAdapter.Type.TV_SHOW_TV_ITEM
                         }
                     }
-                    category.itemSpacing = resources.getDimension(R.dimen.home_spacing).toInt()
-                    category.itemType = when (category.name) {
-                        Category.FEATURED -> AppAdapter.Type.CATEGORY_TV_SWIPER
-                        else -> AppAdapter.Type.CATEGORY_TV_ITEM
-                    }
                 }
-        )
-    }
-
-    fun resetSwiperSchedule() {
-        swiperHandler.removeCallbacksAndMessages(null)
-        swiperHandler.postDelayed(object : Runnable {
-            override fun run() {
-                if (isBackgroundPinned) {
-                    swiperHandler.postDelayed(this, 8_000)
-                    return
-                }
-
-                val position = appAdapter.items
-                    .filterIsInstance<Category>()
-                    .find { it.name == Category.FEATURED }
-                    ?.let { category ->
-                        category.selectedIndex = (category.selectedIndex + 1) % category.list.size
-                        
-                        // Update background when swiper rotates automatically
-                        val currentItem = category.list.getOrNull(category.selectedIndex)
-                        val poster = when (currentItem) {
-                            is Movie -> currentItem.banner
-                            is TvShow -> currentItem.banner
-                            else -> null
-                        }
-                        // Update background if it's not null
-                        if (poster != null) {
-                            updateBackground(poster, null)
-                        }
-
-                        appAdapter.items.indexOf(category)
-                    }
-                    ?.takeIf { it != -1 }
-
-                if (position == null) {
-                    swiperHandler.removeCallbacksAndMessages(null)
-                    return
-                }
-
-                appAdapter.notifyItemChanged(position)
-                swiperHandler.postDelayed(this, 8_000)
+                category.itemSpacing = resources.getDimension(R.dimen.home_spacing).toInt()
+                category.itemType = AppAdapter.Type.CATEGORY_TV_ITEM
             }
-        }, 8_000)
-    }
-
-    private fun syncFeaturedBackground() {
-        val featured = appAdapter.items
-            .filterIsInstance<Category>()
-            .find { it.name == Category.FEATURED }
-            ?: return
-
-        val currentItem = featured.list.getOrNull(featured.selectedIndex)
-        val poster = when (currentItem) {
-            is Movie -> currentItem.banner
-            is TvShow -> currentItem.banner
-            else -> null
-        }
-
-        if (poster != null) {
-            updateBackground(poster, null)
-        }
+        )
     }
 }

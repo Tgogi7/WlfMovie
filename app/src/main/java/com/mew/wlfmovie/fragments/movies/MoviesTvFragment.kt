@@ -1,6 +1,7 @@
 package com.mew.wlfmovie.fragments.movies
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -14,12 +15,14 @@ import com.mew.wlfmovie.R
 import com.mew.wlfmovie.adapters.AppAdapter
 import com.mew.wlfmovie.database.AppDatabase
 import com.mew.wlfmovie.databinding.FragmentMoviesTvBinding
+import com.mew.wlfmovie.models.Genre
 import com.mew.wlfmovie.models.Movie
-import com.mew.wlfmovie.providers.Provider
-import com.mew.wlfmovie.utils.UserPreferences
 import com.mew.wlfmovie.utils.CacheUtils
+import com.mew.wlfmovie.utils.UserPreferences
 import com.mew.wlfmovie.utils.viewModelsFactory
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MoviesTvFragment : Fragment() {
 
@@ -32,6 +35,7 @@ class MoviesTvFragment : Fragment() {
     private val viewModel by viewModelsFactory { MoviesTvViewModel(database) }
 
     private val appAdapter = AppAdapter()
+    private var genreChipAdapter: GenreChipTvAdapter? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -46,6 +50,7 @@ class MoviesTvFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         initializeMovies()
+        loadGenres()
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
@@ -100,9 +105,13 @@ class MoviesTvFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        // WLFMOVIE: Resetear el genreChipAdapter para que se recreé al volver
+        // al fragment (después de entrar a una carátula y devolverse).
+        // Si no lo reseteamos, el adapter viejo queda attachado al RecyclerView
+        // viejo (ya destruido) y las pastillas no aparecen al volver.
+        genreChipAdapter = null
         _binding = null
     }
-
 
     private fun initializeMovies() {
         binding.vgvMovies.apply {
@@ -113,6 +122,40 @@ class MoviesTvFragment : Fragment() {
         }
 
         binding.root.requestFocus()
+    }
+
+    // WLFMOVIE: Paso 2 — cargar géneros en el RecyclerView de chips.
+    // Al click, filtra el grid por género.
+    private fun loadGenres() {
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val provider = UserPreferences.currentProvider ?: return@launch
+                val genres = provider.search("", 1).filterIsInstance<Genre>()
+
+                val allGenre = Genre(id = "destacados", name = "Destacados")
+                val fullGenres = listOf(allGenre) + genres
+
+                withContext(Dispatchers.Main) {
+                    if (_binding == null) return@withContext
+                    if (genreChipAdapter == null) {
+                        genreChipAdapter = GenreChipTvAdapter(fullGenres) { genre ->
+                            // WLFMOVIE: Filtrar por género.
+                            // "Destacados" = sin género (populares).
+                            val genreId = if (genre.id == "destacados") null else genre.id
+                            genreChipAdapter?.setSelected(genre.id)
+                            viewModel.getMovies(genreId)
+                            Log.d("WlfMovie-MoviesTv", "Chip click: ${genre.name} → genreId=$genreId")
+                        }
+                        binding.hgvGenres.apply {
+                            adapter = genreChipAdapter
+                        }
+                        genreChipAdapter?.setSelected("destacados")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("WlfMovie-MoviesTv", "loadGenres: ${e.message}")
+            }
+        }
     }
 
     private fun displayMovies(movies: List<Movie>, hasMore: Boolean) {

@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE: Detalle de película TV rediseñado.
+  - Fondo morado oscuro.
+  - Backdrop que ocupa toda la pantalla.
+  - Overlay de back/+/♥ fijos arriba (focusables para D-pad).
+  - VerticalGridView con el contenido (info, directores, reparto, recomendaciones).
+-->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/wlf_bg_details_fragment"
     tools:context=".fragments.movie.MovieTvFragment">
 
     <ImageView
@@ -22,12 +30,64 @@
         android:id="@+id/vgv_movie"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:itemCount="1"
         tools:listitem="@layout/content_movie_tv" />
+
+    <!-- ===== OVERLAY: Back (top left) =====
+         NO usa ?attr/selectableItemBackgroundBorderless porque Theme.Leanback
+         no lo define y crashea. Usamos wlf_bg_icon_button_selector. -->
+    <ImageView
+        android:id="@+id/btn_overlay_back"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginTop="32dp"
+        android:background="@drawable/wlf_bg_icon_button_selector"
+        android:clickable="true"
+        android:contentDescription="Volver"
+        android:focusable="true"
+        android:padding="12dp"
+        android:src="@drawable/wlf_ic_details_back"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- ===== OVERLAY: Ver después (top right, al lado de favorito) ===== -->
+    <ImageView
+        android:id="@+id/btn_overlay_watch_later"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginTop="32dp"
+        android:background="@drawable/wlf_bg_icon_button_selector"
+        android:clickable="true"
+        android:contentDescription="Ver después"
+        android:focusable="true"
+        android:padding="12dp"
+        android:src="@drawable/wlf_ic_watch_later"
+        app:layout_constraintEnd_toStartOf="@id/btn_overlay_favorite"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- ===== OVERLAY: Favorito (top right) ===== -->
+    <ImageView
+        android:id="@+id/btn_overlay_favorite"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_marginEnd="32dp"
+        android:layout_marginTop="32dp"
+        android:background="@drawable/wlf_bg_icon_button_selector"
+        android:clickable="true"
+        android:contentDescription="Favorito"
+        android:focusable="true"
+        android:padding="12dp"
+        android:src="@drawable/wlf_ic_heart_selector"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <include
         android:id="@+id/is_loading"

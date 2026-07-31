@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE: Item de chip de género para TV.
+  Más grande que el mobile (16sp vs 13sp) y con foco visual morado-fucsia.
+-->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tv_genre_chip"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="12dp"
+    android:background="@drawable/wlf_bg_genre_chip"
+    android:clickable="true"
+    android:focusable="true"
+    android:fontFamily="sans-serif-medium"
+    android:foreground="@drawable/fg_item_genre_tv"
+    android:paddingStart="20dp"
+    android:paddingEnd="20dp"
+    android:textColor="@color/wlf_text_primary"
+    android:textSize="16sp"
+    android:textStyle="bold" />

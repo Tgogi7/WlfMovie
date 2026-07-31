@@ -1,6 +1,7 @@
 package com.mew.wlfmovie.fragments.tv_shows
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -14,12 +15,15 @@ import com.mew.wlfmovie.R
 import com.mew.wlfmovie.adapters.AppAdapter
 import com.mew.wlfmovie.database.AppDatabase
 import com.mew.wlfmovie.databinding.FragmentTvShowsTvBinding
+import com.mew.wlfmovie.fragments.movies.GenreChipTvAdapter
+import com.mew.wlfmovie.models.Genre
 import com.mew.wlfmovie.models.TvShow
-import com.mew.wlfmovie.providers.Provider
-import com.mew.wlfmovie.utils.UserPreferences
 import com.mew.wlfmovie.utils.CacheUtils
+import com.mew.wlfmovie.utils.UserPreferences
 import com.mew.wlfmovie.utils.viewModelsFactory
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class TvShowsTvFragment : Fragment() {
 
@@ -32,6 +36,7 @@ class TvShowsTvFragment : Fragment() {
     private val viewModel by viewModelsFactory { TvShowsTvViewModel(database) }
 
     private val appAdapter = AppAdapter()
+    private var genreChipAdapter: GenreChipTvAdapter? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -46,6 +51,7 @@ class TvShowsTvFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         initializeTvShows()
+        loadGenres()
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
@@ -100,9 +106,11 @@ class TvShowsTvFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        // WLFMOVIE: Resetear el genreChipAdapter para que se recreé al volver
+        // al fragment (después de entrar a una carátula y devolverse).
+        genreChipAdapter = null
         _binding = null
     }
-
 
     private fun initializeTvShows() {
         binding.vgvTvShows.apply {
@@ -114,6 +122,40 @@ class TvShowsTvFragment : Fragment() {
         }
 
         binding.root.requestFocus()
+    }
+
+    // WLFMOVIE: Paso 3 — cargar géneros en el RecyclerView de chips.
+    // Al click, filtra el grid por género.
+    private fun loadGenres() {
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val provider = UserPreferences.currentProvider ?: return@launch
+                val genres = provider.search("", 1).filterIsInstance<Genre>()
+
+                val allGenre = Genre(id = "destacados", name = "Destacados")
+                val fullGenres = listOf(allGenre) + genres
+
+                withContext(Dispatchers.Main) {
+                    if (_binding == null) return@withContext
+                    if (genreChipAdapter == null) {
+                        genreChipAdapter = GenreChipTvAdapter(fullGenres) { genre ->
+                            // WLFMOVIE: Filtrar por género.
+                            // "Destacados" = sin género (populares).
+                            val genreId = if (genre.id == "destacados") null else genre.id
+                            genreChipAdapter?.setSelected(genre.id)
+                            viewModel.getTvShows(genreId)
+                            Log.d("WlfMovie-TvShowsTv", "Chip click: ${genre.name} → genreId=$genreId")
+                        }
+                        binding.hgvGenres.apply {
+                            adapter = genreChipAdapter
+                        }
+                        genreChipAdapter?.setSelected("destacados")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("WlfMovie-TvShowsTv", "loadGenres: ${e.message}")
+            }
+        }
     }
 
     private fun displayTvShows(tvShows: List<TvShow>, hasMore: Boolean) {
@@ -128,3 +170,4 @@ class TvShowsTvFragment : Fragment() {
         }
     }
 }
+

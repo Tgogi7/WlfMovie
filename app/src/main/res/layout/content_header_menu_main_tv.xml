@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE: Header del nav lateral TV rediseñado.
+  Logo más grande (48dp en vez de 24dp) para que se vea bien en TV.
+-->
 <com.tanasi.navigation.widget.NavigationSlideHeaderView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -12,8 +16,8 @@
 
     <ImageView
         android:id="@+id/iv_navigation_header_icon"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:duplicateParentState="true"
         android:foreground="@drawable/fg_navigation_header_icon_tv"
         android:padding="2dp"
@@ -26,13 +30,14 @@
         android:id="@+id/tv_navigation_header_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
+        android:layout_marginStart="10dp"
         android:duplicateParentState="true"
         android:maxLines="1"
         android:paddingStart="0dp"
         android:paddingEnd="10dp"
         android:textColor="#FFFFFF"
-        android:textSize="13sp"
+        android:textSize="16sp"
+        android:textStyle="bold"
         app:layout_constraintStart_toEndOf="@id/iv_navigation_header_icon"
         app:layout_constraintTop_toTopOf="@id/iv_navigation_header_icon"
         tools:text="Title" />
@@ -41,13 +46,13 @@
         android:id="@+id/tv_navigation_header_subtitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
+        android:layout_marginStart="10dp"
         android:duplicateParentState="true"
         android:maxLines="1"
         android:paddingStart="0dp"
         android:paddingEnd="10dp"
         android:textColor="#B3FFFFFF"
-        android:textSize="9sp"
+        android:textSize="11sp"
         app:layout_constraintStart_toEndOf="@id/iv_navigation_header_icon"
         app:layout_constraintTop_toBottomOf="@id/tv_navigation_header_title"
         tools:ignore="SmallSp"
