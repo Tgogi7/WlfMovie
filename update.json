@@ -1,6 +1,6 @@
 {
-  "latestVersion": "2.1",
-  "minVersion": "2.1",
+  "latestVersion": "2",
+  "minVersion": "2",
   "apkUrl": "https://github.com/Tgogi7/WlfMovie/releases/download/v2.1/WlfMovie-v2.1.apk",
   "changelog": "## Versión 2.1\n\n### Novedades\n- **Android TV completamente rediseñado** con la paleta WlfMovie\n- Player gemelo entre mobile y TV (mismo controller, mismos diálogos)\n- Listas TV funcionales (favoritos, pendientes)\n- Nav lateral TV rediseñado con estilo cápsula\n- Detalles TV estilo HBO Max (2 columnas)\n- Chips de géneros con scroll infinito en Movies, TV Shows y Search\n- Spinner morado-fucsia en todo TV\n- Foco blanco en player TV, foco rojo escarlata en carátulas\n\n### Fixes\n- Fondo morado fijo en todos los detalles (sin backdrop dinámico)\n- Barra de progreso transparente con fucsia en carátulas del home\n- Botón Ver temporadas con diálogo custom WlfMovie\n- Texto Visto XX min en detalles en vez de barra gris\n- Long-click deshabilitado en todas las carátulas"
 }
