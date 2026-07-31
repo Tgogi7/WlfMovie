@@ -50,11 +50,20 @@ class MainTvActivity : FragmentActivity() {
 
         super.onCreate(savedInstanceState)
 
+        // WLFMOVIE V3: Verificar actualizaciones al arranque.
+        // Si hay update requerida, bloquea la app con UpdateRequiredActivity.
+        // Hacemos el check ANTES de inflar el layout para evitar crashes
+        // por race conditions con la animación del splash.
+        lifecycleScope.launch {
+            val blocked = com.mew.wlfmovie.utils.UpdateHelper.checkAndBlockIfRequired(this@MainTvActivity)
+            if (blocked) {
+                finish()
+                return@launch
+            }
+        }
+
         // WLFMOVIE: Forzar TMDB (es) como provider al arranque.
         // No importa lo que el user tenia guardado — siempre TMDB.
-        // Esto asegura que en TV la app se comporte igual que en mobile.
-        // UserPreferences.currentProvider getter ya devuelve TMDb por defecto,
-        // pero por si las dudas, lo escribimos explicitamente.
         if (UserPreferences.currentProvider == null) {
             Log.i("WlfMovie-TV", "Provider era null, forzando TMDb (es)")
         }
@@ -74,7 +83,9 @@ class MainTvActivity : FragmentActivity() {
             .setDuration(800)
             .setStartDelay(400)
             .withEndAction {
-                binding.ivSplashOverlay.visibility = View.GONE
+                // WLFMOVIE: Proteger contra NPE si la activity fue destruida
+                // (ej: update check bloqueó la app mientras la animación corría).
+                _binding?.ivSplashOverlay?.visibility = View.GONE
             }
 
         val navHostFragment = this.supportFragmentManager

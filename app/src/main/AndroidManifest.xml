@@ -109,6 +109,13 @@
             </intent-filter>
         </activity>
 
+        <!-- WLFMOVIE V3: Pantalla de actualización requerida -->
+        <activity
+            android:name=".activities.update.UpdateRequiredActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.Mobile"
+            android:screenOrientation="behind" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"

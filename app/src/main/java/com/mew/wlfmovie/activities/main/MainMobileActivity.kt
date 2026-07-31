@@ -102,6 +102,16 @@ class MainMobileActivity : FragmentActivity() {
 
         super.onCreate(savedInstanceState)
 
+        // WLFMOVIE V3: Verificar actualizaciones al arranque.
+        // Si hay update requerida, bloquea la app con UpdateRequiredActivity.
+        lifecycleScope.launch {
+            val blocked = com.mew.wlfmovie.utils.UpdateHelper.checkAndBlockIfRequired(this@MainMobileActivity)
+            if (blocked) {
+                finish()
+                return@launch
+            }
+        }
+
         AnimeOnlineNinjaProvider.init(this)
         Cine24hProvider.init(this)
         FilmyOnlineCcProvider.init(this)
