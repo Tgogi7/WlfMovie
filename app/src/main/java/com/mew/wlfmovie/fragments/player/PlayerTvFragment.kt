@@ -112,6 +112,10 @@ import org.json.JSONObject
 import java.util.Locale
 import java.util.UUID
 import com.mew.wlfmovie.extractors.TokenManager
+import android.app.Dialog
+import android.graphics.drawable.ColorDrawable
+import androidx.core.view.WindowCompat
+import androidx.core.net.toUri
 
 class PlayerTvFragment : Fragment() {
     companion object {
@@ -809,6 +813,44 @@ class PlayerTvFragment : Fragment() {
             }
 
             updatePlayerHeader()
+
+            // WLFMOVIE: Listeners para los botones nuevos del controller rediseñado.
+            binding.pvPlayer.controller.binding.btnExoBack?.setOnClickListener {
+                findNavController().navigateUp()
+            }
+
+            binding.pvPlayer.controller.binding.btnExoZoom?.setOnClickListener {
+                val currentResize = UserPreferences.playerResize
+                val newResize = when (currentResize) {
+                    UserPreferences.PlayerResize.Fit -> UserPreferences.PlayerResize.Zoom
+                    UserPreferences.PlayerResize.Zoom -> UserPreferences.PlayerResize.Fit
+                    else -> UserPreferences.PlayerResize.Fit
+                }
+                UserPreferences.playerResize = newResize
+                binding.pvPlayer.controllerShowTimeoutMs = binding.pvPlayer.controllerShowTimeoutMs
+                updatePlayerScale()
+            }
+
+            binding.pvPlayer.controller.binding.btnRew10?.setOnClickListener {
+                player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0))
+            }
+
+            binding.pvPlayer.controller.binding.btnFfwd10?.setOnClickListener {
+                player.seekTo((player.currentPosition + 10_000).coerceAtLeast(0))
+            }
+
+            binding.pvPlayer.controller.binding.btnExoSubs?.setOnClickListener {
+                showSubtitlesDialog()
+            }
+
+            binding.pvPlayer.controller.binding.btnExoAudio?.setOnClickListener {
+                showAudioDialog()
+            }
+
+            binding.pvPlayer.controller.binding.btnExoServers?.setOnClickListener {
+                showServersDialog()
+            }
+            
 
             binding.pvPlayer.controller.binding.btnExoExternalPlayer.setOnClickListener {
                 Toast.makeText(
@@ -1946,5 +1988,133 @@ class PlayerTvFragment : Fragment() {
         cookieManager.flush()
     }
 
+
+    // =================================================================
+    // WLFMOVIE: Diálogos custom (portados del PlayerMobileFragment)
+    // =================================================================
+
+    private fun showWlfDialog(
+        title: String,
+        items: List<Pair<String, (() -> Unit)>>
+    ) {
+        if (items.isEmpty()) return
+
+        player.pause()
+
+        val dialog = Dialog(requireContext())
+        val dialogView = LayoutInflater.from(requireContext())
+            .inflate(R.layout.wlf_dialog_list, null)
+
+        dialogView.findViewById<TextView>(R.id.tv_dialog_title).text = title
+
+        val container = dialogView.findViewById<LinearLayout>(R.id.ll_dialog_items)
+        items.forEach { (label, action) ->
+            val item = LayoutInflater.from(requireContext())
+                .inflate(R.layout.wlf_dialog_list_item, container, false) as TextView
+            item.text = label
+            item.setOnClickListener {
+                action.invoke()
+                dialog.dismiss()
+            }
+            container.addView(item)
+        }
+
+        dialog.setContentView(dialogView)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        dialog.setOnDismissListener {
+            player.play()
+        }
+        dialog.show()
+    }
+
+    private fun showServersDialog() {
+        if (servers.isEmpty()) {
+            Toast.makeText(requireContext(), "No hay servidores disponibles", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val items = servers.mapIndexed { index, server ->
+            "Server ${index + 1} · ${server.name.ifBlank { "Opción ${index + 1}" }}" to {
+                Log.i("WlfMovie", "[Player-TV] Server seleccionado: ${server.name}")
+                viewModel.getVideo(server)
+                binding.pvPlayer.controller.binding.btnExoServers?.text = "Server ${index + 1}"
+            }
+        }
+        showWlfDialog("Servidores", items)
+    }
+
+    private fun showSubtitlesDialog() {
+        val video = currentVideo
+        val items = mutableListOf<Pair<String, (() -> Unit)>>()
+
+        items.add("Desactivado" to {
+            try {
+                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    .build()
+            } catch (e: Exception) {
+                Log.e("WlfMovie", "Error desactivando subs: ${e.message}")
+            }
+        })
+
+        video?.subtitles?.forEach { sub ->
+            items.add(sub.label to {
+                try {
+                    val subtitleUri = sub.file.toUri()
+                    val newMediaItem = player.currentMediaItem?.buildUpon()
+                        ?.setSubtitleConfigurations(
+                            listOf(
+                                MediaItem.SubtitleConfiguration.Builder(subtitleUri)
+                                    .setLabel(sub.label)
+                                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                                    .build()
+                            )
+                        )
+                        ?.build()
+                    newMediaItem?.let {
+                        val currentPosition = player.currentPosition
+                        player.setMediaItem(it, currentPosition)
+                        player.prepare()
+                        player.play()
+                    }
+                } catch (e: Exception) {
+                    Log.e("WlfMovie", "Error aplicando subtítulo: ${e.message}")
+                }
+            })
+        }
+
+        showWlfDialog("Subtítulos", items)
+    }
+
+    private fun showAudioDialog() {
+        val items = mutableListOf<Pair<String, (() -> Unit)>>()
+
+        try {
+            val audioTracks = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+            if (audioTracks.isNotEmpty()) {
+                audioTracks.forEachIndexed { index, group ->
+                    if (group.length > 0) {
+                        val name = group.getTrackFormat(0)?.label ?: "Pista ${index + 1}"
+                        items.add(name to {
+                            try {
+                                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                                    .build()
+                            } catch (e: Exception) {
+                                Log.e("WlfMovie", "Error audio: ${e.message}")
+                            }
+                        })
+                    }
+                }
+            } else {
+                items.add("Audio por defecto" to { })
+            }
+        } catch (e: Exception) {
+            items.add("Audio por defecto" to { })
+        }
+
+        showWlfDialog("Audio", items)
+    }
 
     }

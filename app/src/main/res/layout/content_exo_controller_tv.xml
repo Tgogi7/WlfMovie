@@ -34,6 +34,7 @@
         android:layout_marginStart="32dp"
         android:layout_marginTop="32dp"
         android:background="@drawable/wlf_bg_icon_button_selector"
+        android:foreground="@drawable/wlf_bg_player_focus_tv"
         android:clickable="true"
         android:contentDescription="Volver"
         android:focusable="true"
@@ -87,6 +88,7 @@
         android:layout_marginEnd="16dp"
         android:layout_marginTop="32dp"
         android:background="@drawable/wlf_bg_next_episode_button"
+        android:foreground="@drawable/wlf_bg_player_focus_tv"
         android:clickable="true"
         android:drawableStart="@drawable/wlf_ic_next_episode"
         android:drawablePadding="8dp"
@@ -114,6 +116,7 @@
         android:layout_marginEnd="32dp"
         android:layout_marginTop="32dp"
         android:background="@drawable/wlf_bg_server_button"
+        android:foreground="@drawable/wlf_bg_player_focus_tv"
         android:clickable="true"
         android:drawableStart="@drawable/wlf_ic_servers"
         android:drawablePadding="8dp"
@@ -151,6 +154,7 @@
             android:layout_height="80dp"
             android:layout_marginEnd="48dp"
             android:background="@drawable/wlf_bg_button_circle_selector"
+            android:foreground="@drawable/wlf_bg_player_focus_tv"
             android:clickable="true"
             android:contentDescription="Retroceder 10"
             android:focusable="true"
@@ -165,6 +169,7 @@
             android:layout_width="96dp"
             android:layout_height="96dp"
             android:background="@drawable/wlf_bg_button_play_selector"
+            android:foreground="@drawable/wlf_bg_player_focus_tv"
             android:clickable="true"
             android:contentDescription="Reproducir/Pausar"
             android:focusable="true"
@@ -180,6 +185,7 @@
             android:layout_height="80dp"
             android:layout_marginStart="48dp"
             android:background="@drawable/wlf_bg_button_circle_selector"
+            android:foreground="@drawable/wlf_bg_player_focus_tv"
             android:clickable="true"
             android:contentDescription="Adelantar 10"
             android:focusable="true"
@@ -208,6 +214,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="@drawable/wlf_bg_icon_button_selector"
+        android:foreground="@drawable/wlf_bg_player_focus_tv"
             android:clickable="true"
             android:contentDescription="Subtítulos"
             android:focusable="true"
@@ -224,6 +231,7 @@
             android:layout_height="48dp"
             android:layout_marginStart="8dp"
             android:background="@drawable/wlf_bg_icon_button_selector"
+        android:foreground="@drawable/wlf_bg_player_focus_tv"
             android:clickable="true"
             android:contentDescription="Audio"
             android:focusable="true"
@@ -288,6 +296,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="@drawable/wlf_bg_icon_button_selector"
+        android:foreground="@drawable/wlf_bg_player_focus_tv"
             android:clickable="true"
             android:contentDescription="Zoom"
             android:focusable="true"
@@ -312,5 +321,68 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:visibility="visible" />
+
+    <!-- ===== ELEMENTOS OCULTOS ===== -->
+    <!-- WLFMOVIE: Estos IDs existen en el controller TV original y el PlayerTvFragment
+         los referencia. Los añadimos como elementos ocultos (visibility=gone, tamaño 0)
+         para que el binding compile sin romper la lógica del fragment.
+         Las funcionalidades que manejaban (external player, replay, aspect ratio,
+         settings, skip intro, prev/next) se manejan ahora por otros botones del
+         controller nuevo o por el panel lateral de settings. -->
+    <ImageView
+        android:id="@+id/btn_exo_external_player"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <ImageView
+        android:id="@+id/exo_replay"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <ImageView
+        android:id="@+id/btn_exo_aspect_ratio"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <ImageView
+        android:id="@+id/exo_settings"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <TextView
+        android:id="@+id/btn_skip_intro"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <ImageView
+        android:id="@+id/btn_custom_prev"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <ImageView
+        android:id="@+id/btn_custom_next"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
