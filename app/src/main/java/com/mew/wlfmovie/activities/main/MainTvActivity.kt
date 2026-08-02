@@ -51,15 +51,11 @@ class MainTvActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
 
         // WLFMOVIE V3: Verificar actualizaciones al arranque.
-        // Si hay update requerida, bloquea la app con UpdateRequiredActivity.
-        // Hacemos el check ANTES de inflar el layout para evitar crashes
-        // por race conditions con la animación del splash.
         lifecycleScope.launch {
             val blocked = com.mew.wlfmovie.utils.UpdateHelper.checkAndBlockIfRequired(this@MainTvActivity)
-            if (blocked) {
-                finish()
-                return@launch
-            }
+            if (blocked) { finish(); return@launch }
+            // WLFMOVIE V4: Auto-download si el servidor tiene datos más recientes
+            com.mew.wlfmovie.utils.SyncManager.autoDownloadIfNewer(this@MainTvActivity)
         }
 
         // WLFMOVIE: Forzar TMDB (es) como provider al arranque.
@@ -77,6 +73,8 @@ class MainTvActivity : FragmentActivity() {
         _binding = ActivityMainTvBinding.inflate(layoutInflater)
         setContentView(binding.root)
         applyThemeNavigationChrome()
+
+        // WLFMOVIE V4: Indicador de nube (después de que el binding está listo)
 
         binding.ivSplashOverlay.animate()
             .alpha(0f)
@@ -142,22 +140,21 @@ class MainTvActivity : FragmentActivity() {
                 }
 
                 setOnClickListener {
-                    // WLFMOVIE: ir al home en vez de providers/settings
-                    if (!navController.popBackStack(R.id.home, false)) {
-                        navController.navigate(R.id.home)
-                    }
+                    // WLFMOVIE V4: ir a Settings al click en el logo del header.
+                    navController.navigate(R.id.settings)
                 }
             }
 
             // WLFMOVIE: misma logica que mobile — mostrar nav lateral en
-            // destinos top-level. R.id.lists se anadira en la sub-fase 9.7.
+            // destinos top-level.
             when (destination.id) {
-                R.id.search, R.id.home, R.id.movies, R.id.tv_shows, R.id.lists -> {
+                R.id.search, R.id.home, R.id.movies, R.id.tv_shows, R.id.lists, R.id.settings -> {
                     binding.navMain.visibility = View.VISIBLE
                     updateNavigationVisibility()
                 }
                 else -> binding.navMain.visibility = View.GONE
             }
+
         }
 
         lifecycleScope.launch {
@@ -187,7 +184,7 @@ class MainTvActivity : FragmentActivity() {
             override fun handleOnBackPressed() {
                 when (navController.currentDestination?.id) {
                     R.id.home -> if (binding.navMain.hasFocus()) finish() else binding.navMain.requestFocus()
-                    R.id.search, R.id.movies, R.id.tv_shows, R.id.lists -> {
+                    R.id.search, R.id.movies, R.id.tv_shows, R.id.lists, R.id.settings -> {
                         navigateToProviderHome(navController)
                         binding.navMain.requestFocus()
                     }

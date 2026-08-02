@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE V4: Diálogo de login/register.
+  Con foco visible para TV (wlf_bg_icon_button_tv en botones/toggle).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/wlf_bg_dialog"
+    android:orientation="vertical"
+    android:paddingStart="24dp"
+    android:paddingTop="24dp"
+    android:paddingEnd="24dp"
+    android:paddingBottom="20dp">
+
+    <TextView
+        android:id="@+id/tv_auth_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="20dp"
+        android:fontFamily="sans-serif-medium"
+        android:gravity="center"
+        android:textColor="@color/wlf_fuchsia_neon"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        tools:text="Iniciar sesión" />
+
+    <EditText
+        android:id="@+id/et_auth_email"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/wlf_bg_search_edittext"
+        android:hint="Correo electrónico"
+        android:inputType="textEmailAddress"
+        android:maxLines="1"
+        android:padding="12dp"
+        android:textColor="@color/wlf_text_primary"
+        android:textColorHint="#B8B8D1"
+        android:textSize="15sp" />
+
+    <EditText
+        android:id="@+id/et_auth_username"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/wlf_bg_search_edittext"
+        android:hint="Nombre de usuario"
+        android:inputType="text"
+        android:maxLines="1"
+        android:padding="12dp"
+        android:textColor="@color/wlf_text_primary"
+        android:textColorHint="#B8B8D1"
+        android:textSize="15sp"
+        android:visibility="gone" />
+
+    <EditText
+        android:id="@+id/et_auth_password"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/wlf_bg_search_edittext"
+        android:hint="Contraseña"
+        android:inputType="textPassword"
+        android:maxLines="1"
+        android:padding="12dp"
+        android:textColor="@color/wlf_text_primary"
+        android:textColorHint="#B8B8D1"
+        android:textSize="15sp" />
+
+    <!-- Botón acción con foco TV -->
+    <TextView
+        android:id="@+id/btn_auth_action"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/wlf_bg_play_button_details"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:text="Iniciar sesión"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <!-- Toggle con foco TV -->
+    <TextView
+        android:id="@+id/tv_auth_toggle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/wlf_bg_icon_button_tv"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:padding="8dp"
+        android:text="¿No tienes cuenta? Regístrate"
+        android:textColor="@color/wlf_fuchsia_neon"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/tv_auth_error"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:textColor="#FF6B6B"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+</LinearLayout>

@@ -130,7 +130,16 @@ class MoviesTvFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val provider = UserPreferences.currentProvider ?: return@launch
-                val genres = provider.search("", 1).filterIsInstance<Genre>()
+                // WLFMOVIE V4: Obtener SOLO géneros de películas (no de series).
+                // Antes usabamos provider.search("", 1) que traía géneros de
+                // movies Y tv mezclados, lo que causaba que algunos chips
+                // (como "Action & Adventure" que es de TV) no devolvieran
+                // resultados al filtrar películas.
+                val language = provider.language
+                val tmdbGenres = com.mew.wlfmovie.utils.TMDb3.Genres.movieList(language = language).genres
+                val genres = tmdbGenres.map {
+                    Genre(id = it.id.toString(), name = it.name)
+                }
 
                 val allGenre = Genre(id = "destacados", name = "Destacados")
                 val fullGenres = listOf(allGenre) + genres

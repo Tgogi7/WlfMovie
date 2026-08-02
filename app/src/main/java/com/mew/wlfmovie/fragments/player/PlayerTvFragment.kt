@@ -1503,10 +1503,57 @@ class PlayerTvFragment : Fragment() {
                     val show = player.currentPosition in 3000..120000
                     showSkipIntroButton(show)
                     updateNextEpisodeOverlay()
+
+                    // WLFMOVIE V4: Guardar progreso cada 10 segundos + auto-upload
+                    val currentPos = player.currentPosition
+                    if (currentPos > 0 && currentPos % 10_000 < 1_000) {
+                        saveWatchProgress()
+                    }
                 }
                 progressHandler.postDelayed(progressRunnable, 1000)
             }
             progressHandler.post(progressRunnable)
+        }
+
+        // WLFMOVIE V4: Guarda el progreso de reproducción en la DB local + auto-upload a la nube
+        private fun saveWatchProgress() {
+            try {
+                val videoType = args.videoType
+                val position = player.currentPosition
+                val duration = player.duration
+
+                if (position <= 0 || duration <= 0) return
+
+                val watchHistory = WatchItem.WatchHistory(
+                    lastEngagementTimeUtcMillis = System.currentTimeMillis(),
+                    lastPlaybackPositionMillis = position,
+                    durationMillis = duration
+                )
+
+                when (videoType) {
+                    is Video.Type.Movie -> {
+                        val movie = database.movieDao().getById(videoType.id)
+                        movie?.let {
+                            it.watchHistory = watchHistory
+                            it.isWatched = false
+                            database.movieDao().update(it)
+                        }
+                    }
+                    is Video.Type.Episode -> {
+                        val episode = database.episodeDao().getById(videoType.id)
+                        episode?.let {
+                            it.watchHistory = watchHistory
+                            it.isWatched = false
+                            database.episodeDao().update(it)
+                        }
+                    }
+                }
+
+                // WLFMOVIE V4: Auto-upload a la nube
+                com.mew.wlfmovie.utils.SyncManager.autoUpload(requireContext())
+            } catch (e: Exception) {
+                Log.e("WlfMovie-Player", "Error saveWatchProgress: ${e.message}")
+            }
         }
 
         private fun stopProgressHandler() {

@@ -30,13 +30,15 @@ android {
         applicationId "com.mew.wlfmovie"
         minSdk 21
         targetSdk 35
-        versionCode 2
-        versionName "2"
+        versionCode 12
+        versionName "4"
 
         buildConfigField "String", "APP_LAYOUT", "\"${properties.getProperty("APP_LAYOUT")}\""
         buildConfigField "String", "TMDB_API_KEY", "\"${properties.getProperty("TMDB_API_KEY")}\""
         buildConfigField "String", "SUBDL_API_KEY", "\"${properties.getProperty("SUBDL_API_KEY")}\""
         buildConfigField "String", "RABBITSTREAM_SOURCE_API", "\"${properties.getProperty("RABBITSTREAM_SOURCE_API")}\""
+        buildConfigField "String", "SUPABASE_URL", "\"${properties.getProperty("SUPABASE_URL")}\""
+        buildConfigField "String", "SUPABASE_ANON_KEY", "\"${properties.getProperty("SUPABASE_ANON_KEY")}\""
     }
 
     sourceSets {

@@ -184,6 +184,7 @@ class TvShowMobileFragment : Fragment() {
                     withContext(Dispatchers.Main) {
                         val msg = if (isFavorite) "Añadido a favoritos" else "Quitado de favoritos"
                         Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+                        com.mew.wlfmovie.utils.SyncManager.autoUpload(requireContext())
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
@@ -208,10 +209,12 @@ class TvShowMobileFragment : Fragment() {
             set.add(tvShow.id)
             binding.btnOverlayWatchLater.setImageResource(R.drawable.wlf_ic_check)
             Toast.makeText(requireContext(), "Añadido a Ver después", Toast.LENGTH_SHORT).show()
+            com.mew.wlfmovie.utils.SyncManager.autoUpload(requireContext())
         } else {
             set.remove(tvShow.id)
             binding.btnOverlayWatchLater.setImageResource(R.drawable.wlf_ic_watch_later)
             Toast.makeText(requireContext(), "Quitado de Ver después", Toast.LENGTH_SHORT).show()
+            com.mew.wlfmovie.utils.SyncManager.autoUpload(requireContext())
         }
         prefs.edit().putStringSet("tv_shows", set).apply()
     }

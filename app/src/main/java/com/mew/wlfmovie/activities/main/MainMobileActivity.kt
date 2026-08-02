@@ -103,13 +103,11 @@ class MainMobileActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
 
         // WLFMOVIE V3: Verificar actualizaciones al arranque.
-        // Si hay update requerida, bloquea la app con UpdateRequiredActivity.
         lifecycleScope.launch {
             val blocked = com.mew.wlfmovie.utils.UpdateHelper.checkAndBlockIfRequired(this@MainMobileActivity)
-            if (blocked) {
-                finish()
-                return@launch
-            }
+            if (blocked) { finish(); return@launch }
+            // WLFMOVIE V4: Auto-download si el servidor tiene datos más recientes
+            com.mew.wlfmovie.utils.SyncManager.autoDownloadIfNewer(this@MainMobileActivity)
         }
 
         AnimeOnlineNinjaProvider.init(this)
@@ -124,6 +122,8 @@ class MainMobileActivity : FragmentActivity() {
         _binding = ActivityMainMobileBinding.inflate(layoutInflater)
         setContentView(binding.root)
         applyThemeNavigationChrome()
+
+        // WLFMOVIE V4: Indicador de nube (después de que el binding está listo)
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.mainContent) { view, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -181,6 +181,7 @@ class MainMobileActivity : FragmentActivity() {
             updateNavigationVisibility(destination.id)
             updateBottomNavigationVisibility(destination.id)
             binding.mainContent.post { binding.mainContent.requestApplyInsets() }
+
         }
 
         lifecycleScope.launch {

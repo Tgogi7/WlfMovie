@@ -150,7 +150,12 @@ class HomeMobileFragment : Fragment() {
                 binding.rvHome.smoothScrollToPosition(0)
             }
         }
-        
+
+        // WLFMOVIE V4: Botón settings (gear) arriba a la derecha.
+        binding.btnHomeSettings.setOnClickListener {
+            findNavController().navigate(R.id.settings)
+        }
+
         // Ensure background image is hidden on mobile to show theme color
         binding.ivHomeBackground.visibility = View.GONE
     }

@@ -1,1476 +1,295 @@
 package com.mew.wlfmovie.fragments.settings
 
-import android.app.Activity
-import android.content.Intent
-import android.net.Uri
+import android.app.Dialog
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
-import android.text.InputType
-import android.text.SpannableString
-import android.text.style.ForegroundColorSpan
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
-import android.view.inputmethod.EditorInfo
+import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.activity.OnBackPressedCallback
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.constraintlayout.widget.Group
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import androidx.preference.EditTextPreference
-import androidx.preference.ListPreference
-import androidx.preference.Preference
-import androidx.preference.PreferenceCategory
-import androidx.preference.PreferenceFragmentCompat
-import androidx.preference.PreferenceManager
-import androidx.preference.PreferenceScreen
-import androidx.preference.SwitchPreference
-import androidx.preference.SwitchPreferenceCompat
+import androidx.navigation.fragment.findNavController
+import com.bumptech.glide.Glide
 import com.mew.wlfmovie.BuildConfig
 import com.mew.wlfmovie.R
-import com.mew.wlfmovie.activities.main.MainMobileActivity
-import com.mew.wlfmovie.activities.tools.QrScannerActivity
-import com.mew.wlfmovie.backup.BackupRestoreManager
-import com.mew.wlfmovie.backup.ProviderBackupContext
-import com.mew.wlfmovie.database.AppDatabase
-import com.mew.wlfmovie.providers.AnimeOnlineNinjaProvider
-import com.mew.wlfmovie.providers.FrenchStreamProvider
-import com.mew.wlfmovie.providers.Provider
-import com.mew.wlfmovie.providers.ProviderConfigUrl
-import com.mew.wlfmovie.providers.ProviderPortalUrl
-import com.mew.wlfmovie.providers.MStreamProvider
-import com.mew.wlfmovie.providers.SerienStreamProvider
-import com.mew.wlfmovie.providers.StreamingCommunityProvider
-import com.mew.wlfmovie.providers.TmdbProvider
-import com.mew.wlfmovie.utils.AppLanguageManager
-import com.mew.wlfmovie.utils.DnsResolver
-import com.mew.wlfmovie.utils.ProviderChangeNotifier
-import com.mew.wlfmovie.utils.ThemeManager
-import com.mew.wlfmovie.utils.UserPreferences
+import com.mew.wlfmovie.databinding.FragmentSettingsMobileBinding
+import com.mew.wlfmovie.utils.AccountManager
+import com.mew.wlfmovie.utils.SyncManager
+import com.mew.wlfmovie.utils.SupabaseClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
-class SettingsMobileFragment : PreferenceFragmentCompat() {
-    private data class SettingsScreenState(
-        val rootKey: String?,
-        val title: String?,
-    )
+class SettingsMobileFragment : Fragment() {
 
-    private val DEFAULT_DOMAIN_VALUE = "streamingunity.cc"
-    private val DEFAULT_SERIENSTREAM_DOMAIN_VALUE = "serienstream.to"
-    private val DEFAULT_MOFLIX_DOMAIN_VALUE = "moflix-stream.xyz"
-    private val DEFAULT_CUEVANA_DOMAIN_VALUE = "cuevana3.la"
-    private val DEFAULT_POSEIDON_DOMAIN_VALUE = "www.poseidonhd2.co"
-    private val PREFS_ERROR_VALUE = "PREFS_NOT_INIT_ERROR"
-    private var currentScreenState = SettingsScreenState(rootKey = null, title = null)
-    private val screenBackStack = ArrayDeque<SettingsScreenState>()
-    private lateinit var settingsBackCallback: OnBackPressedCallback
+    private var _binding: FragmentSettingsMobileBinding? = null
+    private val binding get() = _binding!!
 
-    private lateinit var backupRestoreManager: BackupRestoreManager
-    private var backupLoadingDialog: AlertDialog? = null
-
-    private val exportBackupLauncher = registerForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri: Uri? ->
-        uri?.let {
-            viewLifecycleOwner.lifecycleScope.launch {
-                performBackupExport(it)
-            }
-        }
-    }
-
-    private val exportDbBackupLauncher = registerForActivityResult(
-        ActivityResultContracts.CreateDocument("application/zip")
-    ) { uri: Uri? ->
-        uri?.let {
-            viewLifecycleOwner.lifecycleScope.launch {
-                performDatabaseBackupExport(it)
-            }
-        }
-    }
-
-    private val importDbBackupLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        uri?.let {
-            viewLifecycleOwner.lifecycleScope.launch {
-                performDatabaseBackupImport(it)
-            }
-        }
-    }
-
-    private val importBackupLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        uri?.let {
-            viewLifecycleOwner.lifecycleScope.launch {
-                performBackupImport(it)
-            }
-        }
-    }
-
-    private val scanResolverQrLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode != Activity.RESULT_OK) {
-            return@registerForActivityResult
-        }
-
-        val rawValue = result.data?.getStringExtra(QrScannerActivity.EXTRA_QR_VALUE).orEmpty()
-        val uri = rawValue
-            .takeIf { it.startsWith("streamflix://resolve") }
-            ?.let(Uri::parse)
-
-        if (uri == null) {
-            Toast.makeText(
-                requireContext(),
-                getString(R.string.settings_scan_resolver_invalid_qr),
-                Toast.LENGTH_SHORT
-            ).show()
-            return@registerForActivityResult
-        }
-
-        val intent = Intent(requireContext(), MainMobileActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            data = uri
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        }
-        startActivity(intent)
-    }
-
-    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-        currentScreenState = SettingsScreenState(rootKey = rootKey, title = null)
-        renderCurrentScreen()
-
-        val allProvidersToBackup = Provider.providers.keys.toMutableList().apply {
-            listOf("it", "en", "es", "de", "fr").forEach { lang ->
-                add(TmdbProvider(lang))
-            }
-        }
-
-        backupRestoreManager = BackupRestoreManager(
-            requireContext(),
-            allProvidersToBackup.mapNotNull { provider ->
-                try {
-                    val db = AppDatabase.getInstanceForProvider(provider.name, requireContext())
-                    ProviderBackupContext(
-                        name = provider.name,
-                        movieDao = db.movieDao(),
-                        tvShowDao = db.tvShowDao(),
-                        episodeDao = db.episodeDao(),
-                        seasonDao = db.seasonDao(),
-                        provider = provider
-                    )
-                } catch (e: Exception) {
-                    Log.w("BackupRestore", "Skipping ${provider.name}: ${e.message}")
-                    null
-                }
-            }
-        )
-
-        displaySettings()
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        settingsBackCallback = object : OnBackPressedCallback(false) {
-            override fun handleOnBackPressed() {
-                if (screenBackStack.isEmpty()) return
-                currentScreenState = screenBackStack.removeLast()
-                settingsBackCallback.isEnabled = screenBackStack.isNotEmpty()
-                renderCurrentScreen()
-            }
-        }
-        requireActivity().onBackPressedDispatcher.addCallback(this, settingsBackCallback)
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentSettingsMobileBinding.inflate(inflater, container, false)
+        return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        SettingsListStyler.attach(view, isTv = false)
+
+        Glide.with(this).load(R.drawable.ic_wlfmovie_logo).into(binding.ivSettingsLogo)
+        binding.tvSettingsVersion.text = "Versión ${BuildConfig.VERSION_NAME}"
+
+        binding.btnSettingsBack.setOnClickListener {
+            findNavController().navigateUp()
+        }
+
+        binding.btnSettingsLogin.setOnClickListener {
+            showAuthDialog(isLogin = true)
+        }
+
+        binding.btnSettingsSync.setOnClickListener {
+            performSync()
+        }
+
+        binding.btnSettingsLogout.setOnClickListener {
+            AccountManager.clearSession(requireContext())
+            updateUI()
+            Toast.makeText(requireContext(), "Sesión cerrada", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnSettingsTerms.setOnClickListener {
+            showTermsDialog()
+        }
+
+        updateUI()
     }
 
-    override fun onPreferenceTreeClick(preference: Preference): Boolean {
-        if (preference is PreferenceScreen && !preference.key.isNullOrBlank()) {
-            screenBackStack.addLast(currentScreenState)
-            currentScreenState = SettingsScreenState(
-                rootKey = preference.key,
-                title = preference.title?.toString(),
-            )
-            settingsBackCallback.isEnabled = screenBackStack.isNotEmpty()
-            renderCurrentScreen()
-            return true
+    private fun updateUI() {
+        val session = AccountManager.getSession(requireContext())
+        if (session != null) {
+            binding.tvSettingsUsername.text = session.username
+            binding.btnSettingsLogin.visibility = View.GONE
+            binding.btnSettingsSync.visibility = View.VISIBLE
+            binding.btnSettingsLogout.visibility = View.VISIBLE
+
+            val lastSync = AccountManager.getLastSync(requireContext())
+            if (lastSync != null) {
+                binding.tvSettingsLastSync.visibility = View.VISIBLE
+                binding.tvSettingsLastSync.text = "Última sync: ${com.mew.wlfmovie.utils.SyncManager.formatLastSync(lastSync)}"
+            } else {
+                binding.tvSettingsLastSync.visibility = View.GONE
+            }
+        } else {
+            binding.tvSettingsUsername.text = "Sin usuario"
+            binding.btnSettingsLogin.visibility = View.VISIBLE
+            binding.btnSettingsSync.visibility = View.GONE
+            binding.btnSettingsLogout.visibility = View.GONE
+            binding.tvSettingsLastSync.visibility = View.GONE
         }
-        return super.onPreferenceTreeClick(preference)
     }
 
-    override fun onDisplayPreferenceDialog(preference: Preference) {
-        if (preference.key == "PARENTAL_CONTROL_PIN" || preference.key == "PARENTAL_CONTROL_ADMIN_PIN") {
-            return
-        }
-        super.onDisplayPreferenceDialog(preference)
-    }
+    private fun showAuthDialog(isLogin: Boolean) {
+        val dialog = Dialog(requireContext())
+        val dialogView = LayoutInflater.from(requireContext())
+            .inflate(R.layout.dialog_auth, null)
 
-    private fun applyScreenTitle() {
-        activity?.title = currentScreenState.title ?: getString(R.string.player_settings_title)
-    }
+        val tvTitle = dialogView.findViewById<TextView>(R.id.tv_auth_title)
+        val etEmail = dialogView.findViewById<EditText>(R.id.et_auth_email)
+        val etUsername = dialogView.findViewById<EditText>(R.id.et_auth_username)
+        val etPassword = dialogView.findViewById<EditText>(R.id.et_auth_password)
+        val btnAction = dialogView.findViewById<TextView>(R.id.btn_auth_action)
+        val tvError = dialogView.findViewById<TextView>(R.id.tv_auth_error)
+        val tvToggle = dialogView.findViewById<TextView>(R.id.tv_auth_toggle)
 
-    private fun renderCurrentScreen() {
-        setPreferencesFromResource(R.xml.settings_mobile, currentScreenState.rootKey)
-        if (::backupRestoreManager.isInitialized) {
-            displaySettings()
-        }
-        applyScreenTitle()
-    }
-
-    private fun displaySettings() {
-        updateOverviewLabels()
-        updateProviderVisibilityState()
-
-        findPreference<EditTextPreference>("provider_streamingcommunity_domain")?.apply {
-            val currentValue = UserPreferences.streamingcommunityDomain
-            summary = currentValue
-            if (currentValue == DEFAULT_DOMAIN_VALUE || currentValue == PREFS_ERROR_VALUE) {
-                text = null
+        var currentIsLogin = isLogin
+        fun updateDialogMode(loginMode: Boolean) {
+            currentIsLogin = loginMode
+            if (loginMode) {
+                tvTitle.text = "Iniciar sesión"
+                btnAction.text = "Iniciar sesión"
+                etUsername.visibility = View.GONE
+                tvToggle.text = "¿No tienes cuenta? Regístrate"
             } else {
-                text = currentValue
+                tvTitle.text = "Registrarse"
+                btnAction.text = "Registrarse"
+                etUsername.visibility = View.VISIBLE
+                tvToggle.text = "¿Ya tienes cuenta? Inicia sesión"
             }
-            setOnPreferenceChangeListener { preference, newValue ->
-                val typed = (newValue as String).trim()
-                val BLOCKED = listOf("streamingcommunityz.green", "streamingunity.club", "streamingunity.bike", "streamingcommunityz.buzz")
-                val effectiveDomain = if (BLOCKED.any { typed.contains(it) }) DEFAULT_DOMAIN_VALUE else typed
-                UserPreferences.streamingcommunityDomain = effectiveDomain
-                preference.summary = effectiveDomain
-                if (effectiveDomain != typed) {
-                    findPreference<EditTextPreference>("provider_streamingcommunity_domain")?.text = null
-                    Toast.makeText(requireContext(), getString(R.string.settings_streamingcommunity_domain_blocked), Toast.LENGTH_LONG).show()
-                }
-                if (UserPreferences.currentProvider is StreamingCommunityProvider) {
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        (UserPreferences.currentProvider as StreamingCommunityProvider).rebuildService()
-                        requireActivity().apply {
-                            finish()
-                            startActivity(Intent(this, this::class.java))
-                        }
-                    }
-                }
-                true
-            }
+            tvError.visibility = View.GONE
+        }
+        updateDialogMode(isLogin)
+
+        tvToggle.setOnClickListener {
+            updateDialogMode(!currentIsLogin)
         }
 
-        findPreference<Preference>("provider_streamingcommunity_domain_reset")?.setOnPreferenceClickListener {
-            UserPreferences.streamingcommunityDomain = DEFAULT_DOMAIN_VALUE
-            findPreference<EditTextPreference>("provider_streamingcommunity_domain")?.apply {
-                summary = DEFAULT_DOMAIN_VALUE
-                text = null
-            }
-            Toast.makeText(requireContext(), getString(R.string.settings_streamingcommunity_domain_reset_done), Toast.LENGTH_SHORT).show()
-            if (UserPreferences.currentProvider is StreamingCommunityProvider) {
-                viewLifecycleOwner.lifecycleScope.launch {
-                    (UserPreferences.currentProvider as StreamingCommunityProvider).rebuildService()
-                    requireActivity().apply {
-                        finish()
-                        startActivity(Intent(this, this::class.java))
-                    }
-                }
-            }
-            true
-        }
+        btnAction.setOnClickListener {
+            val email = etEmail.text.toString().trim()
+            val password = etPassword.text.toString().trim()
+            val username = etUsername.text.toString().trim()
 
-        findPreference<EditTextPreference>("provider_serienstream_domain")?.apply {
-            val currentValue = UserPreferences.serienstreamDomain
-            summary = currentValue
-            if (currentValue == DEFAULT_SERIENSTREAM_DOMAIN_VALUE || currentValue == PREFS_ERROR_VALUE) {
-                text = null
-            } else {
-                text = currentValue
-            }
-            setOnPreferenceChangeListener { preference, newValue ->
-                val typed = (newValue as String).trim()
-                val effectiveDomain = typed.ifBlank { DEFAULT_SERIENSTREAM_DOMAIN_VALUE }
-                UserPreferences.serienstreamDomain = effectiveDomain
-                preference.summary = effectiveDomain
-                if (UserPreferences.currentProvider is SerienStreamProvider) {
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        SerienStreamProvider.reloadService()
-                        requireActivity().apply {
-                            finish()
-                            startActivity(Intent(this, this::class.java))
-                        }
-                    }
-                }
-                true
-            }
-        }
+            tvError.visibility = View.GONE
 
-        findPreference<Preference>("provider_serienstream_domain_reset")?.setOnPreferenceClickListener {
-            UserPreferences.serienstreamDomain = DEFAULT_SERIENSTREAM_DOMAIN_VALUE
-            findPreference<EditTextPreference>("provider_serienstream_domain")?.apply {
-                summary = DEFAULT_SERIENSTREAM_DOMAIN_VALUE
-                text = null
+            if (email.isBlank() || password.isBlank()) {
+                tvError.text = "Completa todos los campos"
+                tvError.visibility = View.VISIBLE
+                return@setOnClickListener
             }
-            Toast.makeText(requireContext(), getString(R.string.settings_serienstream_domain_reset_done), Toast.LENGTH_SHORT).show()
-            if (UserPreferences.currentProvider is SerienStreamProvider) {
-                viewLifecycleOwner.lifecycleScope.launch {
-                    SerienStreamProvider.reloadService()
-                    requireActivity().apply {
-                        finish()
-                        startActivity(Intent(this, this::class.java))
-                    }
-                }
-            }
-            true
-        }
 
-        findPreference<EditTextPreference>("provider_moflix_domain")?.apply {
-            val currentValue = UserPreferences.moflixDomain
-            summary = currentValue
-            if (currentValue == DEFAULT_MOFLIX_DOMAIN_VALUE || currentValue == PREFS_ERROR_VALUE) {
-                text = null
-            } else {
-                text = currentValue
+            if (!currentIsLogin && username.isBlank()) {
+                tvError.text = "Elige un nombre de usuario"
+                tvError.visibility = View.VISIBLE
+                return@setOnClickListener
             }
-            setOnPreferenceChangeListener { preference, newValue ->
-                val typed = (newValue as String).trim()
-                val effectiveDomain = typed.ifBlank { DEFAULT_MOFLIX_DOMAIN_VALUE }
-                UserPreferences.moflixDomain = effectiveDomain
-                preference.summary = effectiveDomain
-                true
-            }
-        }
 
-        findPreference<Preference>("provider_moflix_domain_reset")?.setOnPreferenceClickListener {
-            UserPreferences.moflixDomain = DEFAULT_MOFLIX_DOMAIN_VALUE
-            findPreference<EditTextPreference>("provider_moflix_domain")?.apply {
-                summary = DEFAULT_MOFLIX_DOMAIN_VALUE
-                text = null
+            if (!AccountManager.isValidEmail(email)) {
+                tvError.text = "Email no válido"
+                tvError.visibility = View.VISIBLE
+                return@setOnClickListener
             }
-            Toast.makeText(requireContext(), getString(R.string.settings_moflix_domain_reset_done), Toast.LENGTH_SHORT).show()
-            true
-        }
 
-        findPreference<EditTextPreference>("provider_cuevana_domain")?.apply {
-            val currentValue = UserPreferences.cuevanaDomain
-            summary = currentValue
-            if (currentValue == DEFAULT_CUEVANA_DOMAIN_VALUE) {
-                text = null
-            } else {
-                text = currentValue
+            if (password.length < 6) {
+                tvError.text = "La contraseña debe tener al menos 6 caracteres"
+                tvError.visibility = View.VISIBLE
+                return@setOnClickListener
             }
-            setOnPreferenceChangeListener { preference, newValue ->
-                val newDomainFromDialog = newValue as String
-                UserPreferences.cuevanaDomain = newDomainFromDialog
-                preference.summary = UserPreferences.cuevanaDomain
-                if (UserPreferences.currentProvider?.name == "Cuevana 3") {
-                    requireActivity().apply {
-                        finish()
-                        startActivity(Intent(this, this::class.java))
-                    }
-                }
-                true
-            }
-        }
 
-        findPreference<EditTextPreference>("provider_poseidon_domain")?.apply {
-            val currentValue = UserPreferences.poseidonDomain
-            summary = currentValue
-            if (currentValue == DEFAULT_POSEIDON_DOMAIN_VALUE) {
-                text = null
-            } else {
-                text = currentValue
-            }
-            setOnPreferenceChangeListener { preference, newValue ->
-                val newDomainFromDialog = newValue as String
-                UserPreferences.poseidonDomain = newDomainFromDialog
-                preference.summary = UserPreferences.poseidonDomain
-                if (UserPreferences.currentProvider?.name == "Poseidonhd2") {
-                    requireActivity().apply {
-                        finish()
-                        startActivity(Intent(this, this::class.java))
-                    }
-                }
-                true
-            }
-        }
+            btnAction.text = "Procesando..."
+            btnAction.isEnabled = false
 
-        bindAnimeOnlineNinjaPreferredServer()
-
-        findPreference<EditTextPreference>("TMDB_API_KEY")?.apply {
-            summary = if (UserPreferences.tmdbApiKey.isEmpty()) getString(R.string.settings_tmdb_api_key_summary) else UserPreferences.tmdbApiKey
-            text = UserPreferences.tmdbApiKey
-            setOnPreferenceChangeListener { _, newValue ->
-                val newKey = (newValue as String).trim()
-                UserPreferences.tmdbApiKey = newKey
-                summary = if (newKey.isEmpty()) getString(R.string.settings_tmdb_api_key_summary) else newKey
-                val message = if (newKey.isEmpty()) {
-                    getString(R.string.settings_tmdb_api_key_reset)
+            lifecycleScope.launch {
+                val result = if (currentIsLogin) {
+                    SupabaseClient.login(email, password)
                 } else {
-                    getString(R.string.settings_tmdb_api_key_success)
-                }
-                Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
-                true
-            }
-        }
-
-        findPreference<EditTextPreference>("SUBDL_API_KEY")?.apply {
-            summary = if (UserPreferences.subdlApiKey.isEmpty()) getString(R.string.settings_subdl_api_key_summary) else UserPreferences.subdlApiKey
-            text = UserPreferences.subdlApiKey
-            setOnPreferenceChangeListener { _, newValue ->
-                val newKey = (newValue as String).trim()
-                UserPreferences.subdlApiKey = newKey
-                summary = if (newKey.isEmpty()) getString(R.string.settings_subdl_api_key_summary) else newKey
-                val message = if (newKey.isEmpty()) {
-                    getString(R.string.settings_subdl_api_key_reset)
-                } else {
-                    getString(R.string.settings_subdl_api_key_success)
-                }
-                Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
-                true
-            }
-        }
-
-        findPreference<Preference>("p_settings_about")?.apply {
-            val palette = ThemeManager.palette(UserPreferences.selectedTheme)
-            val titleStr = getString(R.string.settings_version_mobile)
-            val spannableTitle = SpannableString(titleStr)
-            spannableTitle.setSpan(ForegroundColorSpan(palette.tvHeaderPrimary), 0, titleStr.length, 0)
-            title = spannableTitle
-            
-            val summaryStr = BuildConfig.VERSION_NAME
-            val spannableSummary = SpannableString(summaryStr)
-            spannableSummary.setSpan(ForegroundColorSpan(palette.tvHeaderSecondary), 0, summaryStr.length, 0)
-            summary = spannableSummary
-            
-            isSelectable = false
-            setOnPreferenceClickListener(null)
-        }
-
-        findPreference<Preference>("p_settings_help")?.setOnPreferenceClickListener {
-            startActivity(
-                Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse("https://github.com/streamflix-reborn2/streamflix")
-                )
-            )
-            true
-        }
-
-        findPreference<Preference>("p_settings_telegram")?.setOnPreferenceClickListener {
-            try {
-                val tgIntent = Intent(Intent.ACTION_VIEW, Uri.parse("tg://resolve?domain=streamflixreborn"))
-                startActivity(tgIntent)
-            } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Telegram not found.", Toast.LENGTH_SHORT).show()
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/streamflixreborn"))
-                startActivity(intent)
-            }
-            true
-        }
-
-        findPreference<Preference>("p_scan_resolver_qr")?.setOnPreferenceClickListener {
-            scanResolverQrLauncher.launch(Intent(requireContext(), QrScannerActivity::class.java))
-            true
-        }
-
-        findPreference<SwitchPreference>("AUTOPLAY")?.isChecked = UserPreferences.autoplay
-        findPreference<SwitchPreference>("AUTOPLAY")?.setOnPreferenceChangeListener { _, newValue ->
-            UserPreferences.autoplay = newValue as Boolean
-            true
-        }
-
-        findPreference<SwitchPreference>("FORCE_EXTRA_BUFFERING")?.apply {
-            isChecked = UserPreferences.forceExtraBuffering
-            setOnPreferenceChangeListener { _, newValue ->
-                UserPreferences.forceExtraBuffering = newValue as Boolean
-                true
-            }
-        }
-
-        findPreference<EditTextPreference>("p_settings_autoplay_buffer")?.apply {
-            summaryProvider = Preference.SummaryProvider<EditTextPreference> { pref ->
-                val value = pref.text?.toLongOrNull() ?: 3L
-                "$value s"
-            }
-            setOnPreferenceChangeListener { _, newValue ->
-                UserPreferences.autoplayBuffer = (newValue as String).toLongOrNull() ?: 3L
-                true
-            }
-        }
-
-        findPreference<SwitchPreference>("PLAYER_GESTURES")?.isChecked = UserPreferences.playerGestures
-        findPreference<SwitchPreference>("PLAYER_GESTURES")?.setOnPreferenceChangeListener { _, newValue ->
-            UserPreferences.playerGestures = newValue as Boolean
-            true
-        }
-
-        findPreference<SwitchPreference>("KEEP_SCREEN_ON_WHEN_PAUSED")?.isChecked = UserPreferences.keepScreenOnWhenPaused
-        findPreference<SwitchPreference>("KEEP_SCREEN_ON_WHEN_PAUSED")?.setOnPreferenceChangeListener { _, newValue ->
-            UserPreferences.keepScreenOnWhenPaused = newValue as Boolean
-            true
-        }
-
-        findPreference<SwitchPreference>("UPDATE_CHECK_ENABLED")?.isChecked = UserPreferences.updateCheckEnabled
-        findPreference<SwitchPreference>("UPDATE_CHECK_ENABLED")?.setOnPreferenceChangeListener { _, newValue ->
-            UserPreferences.updateCheckEnabled = newValue as Boolean
-            true
-        }
-
-        findPreference<SwitchPreference>("SERVER_AUTO_SUBTITLES_DISABLED")?.apply {
-            isChecked = UserPreferences.serverAutoSubtitlesDisabled
-            setOnPreferenceChangeListener { _, newValue ->
-                UserPreferences.serverAutoSubtitlesDisabled = newValue as Boolean
-                true
-            }
-        }
-
-        val HasConfigProvider = UserPreferences.currentProvider is ProviderConfigUrl
-        findPreference<PreferenceCategory>("pc_provider_settings")?.apply {
-            isVisible = HasConfigProvider
-        }
-
-        if (HasConfigProvider) {
-            val provider = UserPreferences.currentProvider
-            val configProvider = provider as? ProviderConfigUrl
-            val portalProvider = provider as? ProviderPortalUrl
-            var autoUpdateVal = false
-
-            findPreference<SwitchPreference>("provider_autoupdate")?.apply {
-                isVisible = portalProvider != null
-                if (isVisible) {
-                    autoUpdateVal = UserPreferences
-                        .getProviderCache(
-                            provider!!, UserPreferences
-                                .PROVIDER_AUTOUPDATE
-                        ) != "false"
-                    isChecked = autoUpdateVal
-                    setOnPreferenceChangeListener { _, newValue ->
-                        val newState = newValue as Boolean
-                        UserPreferences.setProviderCache(
-                            null,
-                            UserPreferences.PROVIDER_AUTOUPDATE,
-                            newState.toString()
-                        )
-                        findPreference<EditTextPreference>("provider_url")?.isEnabled = newState == false
-                        true
-                    }
-                }
-            }
-
-            findPreference<EditTextPreference>("provider_url")?.apply {
-                isVisible = configProvider != null
-                isEnabled = autoUpdateVal == false
-                if (isVisible && provider != null && configProvider != null) {
-                    summary = UserPreferences
-                        .getProviderCache(
-                            provider, UserPreferences
-                                .PROVIDER_URL
-                        )
-                        .ifBlank { provider.defaultBaseUrl }
-                    setOnBindEditTextListener { editText ->
-                        editText.inputType = InputType.TYPE_CLASS_TEXT
-                        editText.imeOptions = EditorInfo.IME_ACTION_DONE
-                        editText.hint = configProvider.defaultBaseUrl
-
-                        editText.setText(summary)
-                    }
-                    setOnPreferenceChangeListener { _, newValue ->
-                        val toSave = (newValue as String)
-                            .ifBlank { configProvider.defaultBaseUrl }
-                            .trim()
-                            .removeSuffix("/") + "/"
-                        UserPreferences.setProviderCache(
-                            null,
-                            UserPreferences.PROVIDER_URL,
-                            toSave
-                        )
-                        summary = toSave
-                        viewLifecycleOwner.lifecycleScope.launch {
-                            configProvider.onChangeUrl()
-                            ProviderChangeNotifier.notifyProviderChanged()
-                        }
-                        true
-                    }
-                }
-            }
-
-            findPreference<EditTextPreference>("provider_portal_url")?.apply {
-                isVisible = portalProvider != null
-                if (isVisible && provider != null && portalProvider != null) {
-                    summary = UserPreferences
-                        .getProviderCache(
-                            provider, UserPreferences
-                                .PROVIDER_PORTAL_URL
-                        )
-                        .ifBlank { portalProvider.defaultPortalUrl }
-                    setOnBindEditTextListener { editText ->
-                        editText.inputType = InputType.TYPE_CLASS_TEXT
-                        editText.imeOptions = EditorInfo.IME_ACTION_DONE
-                        editText.hint = portalProvider.defaultPortalUrl
-                        editText.setText(summary)
-                    }
-                    setOnPreferenceChangeListener { _, newValue ->
-                        val toSave = (newValue as String)
-                            .ifBlank { portalProvider.defaultPortalUrl }
-                            .trim()
-                            .removeSuffix("/") + "/"
-                        summary = toSave
-                        UserPreferences.setProviderCache(
-                            null,
-                            UserPreferences.PROVIDER_PORTAL_URL,
-                            toSave
-                        )
-                        true
-                    }
-                }
-            }
-
-            findPreference<Preference>("provider_autoupdate_now")?.apply {
-                isVisible = portalProvider != null
-                setOnPreferenceClickListener {
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        findPreference<EditTextPreference>("provider_url")?.summary =
-                            configProvider!!.onChangeUrl(true)
-                    }
-                    true
-                }
-            }
-        }
-
-        findPreference<ListPreference>("p_doh_provider_url")?.apply {
-            value = UserPreferences.dohProviderUrl
-            summary = entry
-            setOnPreferenceChangeListener { preference, newValue ->
-                val newUrl = newValue as String
-                UserPreferences.dohProviderUrl = newUrl
-                DnsResolver.setDnsUrl(newUrl)
-                if (preference is ListPreference) {
-                    val index = preference.findIndexOfValue(newUrl)
-                    if (index >= 0 && preference.entries != null && index < preference.entries.size) {
-                        preference.summary = preference.entries[index]
-                    } else {
-                        preference.summary = null
-                    }
-                }
-                if (UserPreferences.currentProvider is StreamingCommunityProvider) {
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        (UserPreferences.currentProvider as StreamingCommunityProvider).rebuildService()
-                        requireActivity().apply {
-                            finish()
-                            startActivity(Intent(this, this::class.java))
-                        }
-                    }
-                } else {
-                    Toast.makeText(requireContext(), getString(R.string.doh_provider_updated), Toast.LENGTH_LONG).show()
-                }
-                true
-            }
-        }
-
-        findPreference<SwitchPreference>("pc_frenchstream_new_interface")?.apply {
-            isVisible = UserPreferences.currentProvider is FrenchStreamProvider
-            if (isVisible) {
-                val useNewInterface = UserPreferences
-                    .getProviderCache(
-                        UserPreferences.currentProvider!!, UserPreferences
-                            .PROVIDER_NEW_INTERFACE
-                    ) != "false"
-                isChecked = useNewInterface
-                setOnPreferenceChangeListener { _, newValue ->
-                    val newState = newValue as Boolean
-                    UserPreferences.setProviderCache(
-                        null,
-                        UserPreferences.PROVIDER_NEW_INTERFACE,
-                        newState.toString()
-                    )
-                    true
-                }
-            }
-        }
-
-        findPreference<ListPreference>("SELECTED_THEME")?.apply {
-            summaryProvider = Preference.SummaryProvider<ListPreference> { pref ->
-                getString(ThemeManager.titleRes(pref.value ?: ThemeManager.DEFAULT))
-            }
-            setOnPreferenceChangeListener { preference, newValue ->
-                val newTheme = newValue as String
-                UserPreferences.selectedTheme = newTheme
-                if (preference is ListPreference) {
-                    preference.value = newTheme
-                }
-                requireActivity().apply {
-                    finish()
-                    startActivity(Intent(this, MainMobileActivity::class.java))
-                }
-                true
-            }
-        }
-
-        findPreference<ListPreference>("APP_LANGUAGE")?.apply {
-            entries = AppLanguageManager.buildLanguageEntries(requireContext())
-            entryValues = AppLanguageManager.buildLanguageValues(requireContext())
-            value = AppLanguageManager.getSelectedLanguage(requireContext())
-            summaryProvider = Preference.SummaryProvider<ListPreference> { pref ->
-                pref.entries.getOrNull(pref.findIndexOfValue(pref.value))
-                    ?: getString(R.string.settings_app_language_system)
-            }
-            setOnPreferenceChangeListener { preference, newValue ->
-                val newLanguage = newValue as String
-                AppLanguageManager.setSelectedLanguage(newLanguage)
-                if (preference is ListPreference) {
-                    preference.value = newLanguage
-                }
-                requireActivity().apply {
-                    finish()
-                    startActivity(
-                        Intent(this, MainMobileActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                    )
-                }
-                true
-            }
-        }
-
-        findPreference<SwitchPreference>("IMMERSIVE_MODE")?.apply {
-            isChecked = UserPreferences.immersiveMode
-            setOnPreferenceChangeListener { _, newValue ->
-                UserPreferences.immersiveMode = newValue as Boolean
-                (activity as? MainMobileActivity)?.updateImmersiveMode()
-                true
-            }
-        }
-
-        findPreference<SwitchPreferenceCompat>("ENABLE_TMDB")?.apply {
-            isChecked = UserPreferences.enableTmdb
-            setOnPreferenceChangeListener { _, newValue ->
-                val enabled = newValue as Boolean
-                val applyChange = {
-                    UserPreferences.enableTmdb = enabled
-                    updateParentalControlPreferenceState()
-                    ProviderChangeNotifier.notifyProviderChanged()
-                    val message = if (enabled) {
-                        getString(R.string.settings_enable_tmdb_enabled)
-                    } else {
-                        getString(R.string.settings_enable_tmdb_disabled)
-                    }
-                    Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+                    SupabaseClient.register(email, password, username)
                 }
 
-                if (!enabled && UserPreferences.parentalControlPin.isNotBlank()) {
-                    changeParentalSettingWithPinCheck(onVerified = applyChange)
-                    false
-                } else {
-                    applyChange()
-                    true
-                }
-            }
-        }
-
-        setupParentalControlPreferences()
-
-        findPreference<Preference>("key_backup_export_mobile")?.setOnPreferenceClickListener {
-            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val fileName = "streamflix_mobile_backup_$timestamp.json"
-            exportBackupLauncher.launch(fileName)
-            true
-        }
-
-        findPreference<Preference>("key_backup_import_mobile")?.setOnPreferenceClickListener {
-            importBackupLauncher.launch(arrayOf("application/json"))
-            true
-        }
-
-        findPreference<Preference>("preferred_player_reset")?.setOnPreferenceClickListener {
-            PreferenceManager.getDefaultSharedPreferences(requireContext())
-                .edit()
-                .remove("preferred_smarttube_package")
-                .apply()
-            Toast.makeText(requireContext(), R.string.settings_trailer_player_reset, Toast.LENGTH_SHORT).show()
-            true
-        }
-
-        findPreference<Preference>("key_backup_refresh_cache_mobile")?.setOnPreferenceClickListener {
-            AlertDialog.Builder(requireContext())
-                .setTitle(R.string.settings_refresh_cache_confirm)
-                .setMessage(R.string.settings_refresh_cache_message)
-                .setPositiveButton(android.R.string.ok) { _, _ ->
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        val refreshed = backupRestoreManager.refreshCachesFromDatabase()
-                        Toast.makeText(
-                            requireContext(),
-                            if (refreshed) {
-                                R.string.settings_refresh_cache_success
-                            } else {
-                                R.string.settings_refresh_cache_success
-                            },
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
-            true
-        }
-
-        findPreference<Preference>("key_backup_export_db_mobile")?.setOnPreferenceClickListener {
-            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val fileName = "streamflix_mobile_db_backup_$timestamp.zip"
-            exportDbBackupLauncher.launch(fileName)
-            true
-        }
-
-        findPreference<Preference>("key_backup_import_db_mobile")?.setOnPreferenceClickListener {
-            importDbBackupLauncher.launch(arrayOf("application/zip"))
-            true
-        }
-    }
-
-    private fun updateOverviewLabels() {
-        val providerName = UserPreferences.currentProvider?.name
-
-        findPreference<PreferenceScreen>("screen_provider")?.apply {
-            title = getString(R.string.settings_provider_connection_title)
-            summary = providerName?.let {
-                getString(R.string.settings_screen_provider_summary_with_name, it)
-            } ?: getString(R.string.settings_screen_provider_summary)
-        }
-
-        findPreference<PreferenceCategory>("pc_provider_settings")?.title = providerName?.let {
-            getString(R.string.settings_provider_connection_category_title, it)
-        } ?: getString(R.string.settings_category_provider_title)
-
-        findPreference<PreferenceCategory>("pc_provider_empty_state")?.title = providerName?.let {
-            getString(R.string.settings_provider_connection_category_title, it)
-        } ?: getString(R.string.settings_provider_connection_title)
-    }
-
-    private fun updateProviderVisibilityState() {
-        val isStreamingCommunity = UserPreferences.currentProvider is StreamingCommunityProvider
-        val isSerienStream = UserPreferences.currentProvider is SerienStreamProvider
-        val isMoflix = UserPreferences.currentProvider is MStreamProvider
-        val isCuevana = UserPreferences.currentProvider?.name == "Cuevana 3"
-        val isPoseidon = UserPreferences.currentProvider?.name == "Poseidonhd2"
-        val isAnimeOnlineNinja = UserPreferences.currentProvider is AnimeOnlineNinjaProvider
-        val hasConfigProvider = UserPreferences.currentProvider is ProviderConfigUrl
-        val hasSpecificOptions = isStreamingCommunity || isCuevana || isPoseidon || isAnimeOnlineNinja
-
-        findPreference<PreferenceCategory>("pc_streamingcommunity_settings")?.isVisible = isStreamingCommunity
-        findPreference<PreferenceCategory>("pc_serienstream_settings")?.isVisible = isSerienStream
-        findPreference<PreferenceCategory>("pc_moflix_settings")?.isVisible = isMoflix
-        findPreference<PreferenceCategory>("pc_cuevana_settings")?.isVisible = isCuevana
-        findPreference<PreferenceCategory>("pc_poseidon_settings")?.isVisible = isPoseidon
-        findPreference<PreferenceCategory>("pc_animeonlineninja_settings")?.isVisible = isAnimeOnlineNinja
-        findPreference<PreferenceCategory>("pc_provider_empty_state")?.isVisible = !hasConfigProvider && !hasSpecificOptions
-    }
-
-    private fun bindAnimeOnlineNinjaPreferredServer() {
-        val preference = findPreference<ListPreference>("provider_animeonlineninja_preferred_server") ?: return
-        val currentValue = UserPreferences.getProviderCache(
-            AnimeOnlineNinjaProvider,
-            UserPreferences.PROVIDER_PREFERRED_SERVER
-        )
-        preference.value = currentValue
-        preference.summary = preference.entries
-            ?.getOrNull(preference.findIndexOfValue(currentValue))
-            ?: getString(R.string.settings_provider_animeonlineninja_preferred_server_summary)
-        preference.setOnPreferenceChangeListener { pref, newValue ->
-            val value = (newValue as String).trim()
-            UserPreferences.setProviderCache(
-                AnimeOnlineNinjaProvider,
-                UserPreferences.PROVIDER_PREFERRED_SERVER,
-                value
-            )
-            if (pref is ListPreference) {
-                pref.summary = pref.entries?.getOrNull(pref.findIndexOfValue(value))
-                    ?: getString(R.string.settings_provider_animeonlineninja_preferred_server_summary)
-            }
-            true
-        }
-    }
-
-    private fun setupParentalControlPreferences() {
-        val pinPreference = findPreference<EditTextPreference>("PARENTAL_CONTROL_PIN")
-        val adminPinPreference = findPreference<EditTextPreference>("PARENTAL_CONTROL_ADMIN_PIN")
-        val removePinPreference = findPreference<Preference>("PARENTAL_CONTROL_REMOVE_PIN")
-        val removeAdminPinPreference = findPreference<Preference>("PARENTAL_CONTROL_REMOVE_ADMIN_PIN")
-        val maxAgePreference = findPreference<ListPreference>("PARENTAL_CONTROL_MAX_AGE")
-        val unlockPreference = findPreference<Preference>("PARENTAL_CONTROL_UNLOCK")
-
-        fun bindPinEditText(editText: android.widget.EditText) {
-            editText.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            editText.imeOptions = EditorInfo.IME_ACTION_DONE
-            editText.hint = getString(R.string.settings_parental_pin_hint)
-            editText.setText("")
-        }
-
-        pinPreference?.setOnBindEditTextListener(::bindPinEditText)
-        adminPinPreference?.setOnBindEditTextListener(::bindPinEditText)
-
-        pinPreference?.setOnPreferenceClickListener {
-            showParentalPinEditor(maxAgePreference)
-            true
-        }
-
-        adminPinPreference?.setOnPreferenceClickListener {
-            showAdminPinEditor()
-            true
-        }
-
-        removePinPreference?.setOnPreferenceClickListener {
-            changeParentalSettingWithPinCheck {
-                UserPreferences.parentalControlPin = ""
-                UserPreferences.parentalControlMaxAge = null
-                maxAgePreference?.value = ""
-                UserPreferences.unlockParentalControls()
-                Toast.makeText(requireContext(), getString(R.string.settings_parental_pin_removed), Toast.LENGTH_SHORT).show()
-                ProviderChangeNotifier.notifyProviderChanged()
-                updateParentalControlPreferenceState()
-            }
-            true
-        }
-
-        removeAdminPinPreference?.setOnPreferenceClickListener {
-            changeAdminSettingWithPinCheck {
-                UserPreferences.parentalControlAdminPin = ""
-                Toast.makeText(requireContext(), getString(R.string.settings_parental_admin_pin_removed), Toast.LENGTH_SHORT).show()
-                updateParentalControlPreferenceState()
-            }
-            true
-        }
-
-        maxAgePreference?.setOnPreferenceChangeListener { _, newValue ->
-            if (!UserPreferences.enableTmdb) return@setOnPreferenceChangeListener false
-            if (UserPreferences.parentalControlPin.isBlank()) {
-                Toast.makeText(requireContext(), getString(R.string.settings_parental_set_pin_first), Toast.LENGTH_SHORT).show()
-                return@setOnPreferenceChangeListener false
-            }
-
-            val newMaxAgeValue = newValue as String
-            val newMaxAge = newMaxAgeValue.toIntOrNull()
-
-            changeParentalSettingWithPinCheck {
-                UserPreferences.parentalControlMaxAge = newMaxAge
-                maxAgePreference.value = newMaxAgeValue
-                Toast.makeText(requireContext(), getString(R.string.settings_parental_max_age_saved), Toast.LENGTH_SHORT).show()
-                ProviderChangeNotifier.notifyProviderChanged()
-                updateParentalControlPreferenceState()
-            }
-
-            false
-        }
-
-        unlockPreference?.setOnPreferenceClickListener {
-            if (UserPreferences.parentalControlAdminPin.isBlank()) {
-                Toast.makeText(requireContext(), getString(R.string.settings_parental_set_admin_pin_first), Toast.LENGTH_SHORT).show()
-            } else {
-                promptForAdminPin {
-                    UserPreferences.unlockParentalControls()
-                    Toast.makeText(requireContext(), getString(R.string.settings_parental_unlocked), Toast.LENGTH_SHORT).show()
-                    updateParentalControlPreferenceState()
-                }
-            }
-            true
-        }
-
-        updateParentalControlPreferenceState()
-    }
-
-    private fun updateParentalControlPreferenceState() {
-        val tmdbEnabled = UserPreferences.enableTmdb
-        val pinPreference = findPreference<EditTextPreference>("PARENTAL_CONTROL_PIN")
-        val adminPinPreference = findPreference<EditTextPreference>("PARENTAL_CONTROL_ADMIN_PIN")
-        val removePinPreference = findPreference<Preference>("PARENTAL_CONTROL_REMOVE_PIN")
-        val removeAdminPinPreference = findPreference<Preference>("PARENTAL_CONTROL_REMOVE_ADMIN_PIN")
-        val maxAgePreference = findPreference<ListPreference>("PARENTAL_CONTROL_MAX_AGE")
-        val unlockPreference = findPreference<Preference>("PARENTAL_CONTROL_UNLOCK")
-        val isLocked = UserPreferences.isParentalControlTemporarilyLocked || UserPreferences.parentalControlHardLocked
-
-        pinPreference?.apply {
-            isEnabled = tmdbEnabled && !isLocked
-            text = ""
-            summary = when {
-                !tmdbEnabled -> getString(R.string.settings_parental_requires_tmdb)
-                UserPreferences.parentalControlHardLocked -> getString(R.string.settings_parental_locked_hard)
-                UserPreferences.isParentalControlTemporarilyLocked -> getString(
-                    R.string.settings_parental_locked_temporary,
-                    lockRemainingMinutes()
-                )
-                UserPreferences.parentalControlPin.isBlank() -> getString(R.string.settings_parental_pin_not_set)
-                else -> getString(R.string.settings_parental_pin_set)
-            }
-        }
-
-        adminPinPreference?.apply {
-            isEnabled = tmdbEnabled
-            text = ""
-            summary = when {
-                !tmdbEnabled -> getString(R.string.settings_parental_requires_tmdb)
-                UserPreferences.parentalControlAdminPin.isBlank() -> getString(R.string.settings_parental_admin_pin_not_set)
-                else -> getString(R.string.settings_parental_admin_pin_set)
-            }
-        }
-
-        removePinPreference?.apply {
-            isVisible = tmdbEnabled && UserPreferences.parentalControlPin.isNotBlank()
-            isEnabled = !isLocked
-        }
-
-        removeAdminPinPreference?.apply {
-            isVisible = tmdbEnabled && UserPreferences.parentalControlAdminPin.isNotBlank()
-            isEnabled = true
-        }
-
-        maxAgePreference?.apply {
-            isEnabled = tmdbEnabled && !isLocked
-            value = UserPreferences.parentalControlMaxAge?.toString().orEmpty()
-            summary = when {
-                !tmdbEnabled -> getString(R.string.settings_parental_requires_tmdb)
-                UserPreferences.parentalControlHardLocked -> getString(R.string.settings_parental_locked_hard)
-                UserPreferences.isParentalControlTemporarilyLocked -> getString(
-                    R.string.settings_parental_locked_temporary,
-                    lockRemainingMinutes()
-                )
-                UserPreferences.parentalControlPin.isBlank() -> getString(R.string.settings_parental_set_pin_first)
-                UserPreferences.parentalControlMaxAge == null -> getString(R.string.settings_parental_max_age_disabled)
-                else -> "${UserPreferences.parentalControlMaxAge}+"
-            }
-        }
-
-        unlockPreference?.apply {
-            isVisible = isLocked
-            isEnabled = tmdbEnabled && UserPreferences.parentalControlAdminPin.isNotBlank()
-            summary = when {
-                UserPreferences.parentalControlAdminPin.isBlank() -> getString(R.string.settings_parental_set_admin_pin_first)
-                UserPreferences.parentalControlHardLocked -> getString(R.string.settings_parental_locked_hard)
-                UserPreferences.isParentalControlTemporarilyLocked -> getString(
-                    R.string.settings_parental_locked_temporary,
-                    lockRemainingMinutes()
-                )
-                else -> getString(R.string.settings_parental_unlock_summary)
-            }
-        }
-    }
-
-    private fun changeParentalSettingWithPinCheck(onVerified: () -> Unit) {
-        when {
-            UserPreferences.parentalControlHardLocked -> {
-                Toast.makeText(requireContext(), getString(R.string.settings_parental_locked_hard), Toast.LENGTH_SHORT).show()
-                updateParentalControlPreferenceState()
-                return
-            }
-            UserPreferences.isParentalControlTemporarilyLocked -> {
-                Toast.makeText(
-                    requireContext(),
-                    getString(R.string.settings_parental_locked_temporary, lockRemainingMinutes()),
-                    Toast.LENGTH_SHORT
-                ).show()
-                updateParentalControlPreferenceState()
-                return
-            }
-        }
-
-        val currentPin = UserPreferences.parentalControlPin
-        if (currentPin.isBlank()) {
-            onVerified()
-            return
-        }
-
-        promptForPin(
-            titleRes = R.string.settings_parental_enter_current_pin_title,
-            messageRes = R.string.settings_parental_enter_current_pin_message,
-            onSubmit = { enteredPin ->
-                if (enteredPin == currentPin) {
-                    UserPreferences.registerParentalPinSuccess()
-                    onVerified()
-                    null
-                } else {
-                    UserPreferences.registerParentalPinFailure()
-                    updateParentalControlPreferenceState()
-                    when {
-                        UserPreferences.parentalControlHardLocked -> R.string.settings_parental_locked_hard
-                        UserPreferences.isParentalControlTemporarilyLocked -> R.string.settings_parental_locked_temporary
-                        else -> R.string.settings_parental_invalid_pin
-                    }.let { failureMessageRes ->
-                        if (failureMessageRes == R.string.settings_parental_locked_temporary) {
-                            getString(failureMessageRes, lockRemainingMinutes())
+                when (result) {
+                    is SupabaseClient.AuthResult.Success -> {
+                        val user = result.user
+                        AccountManager.saveSession(requireContext(), user.id, user.email, user.username)
+                        if (currentIsLogin) {
+                            SyncManager.download(requireContext(), clearFirst = true)
                         } else {
-                            getString(failureMessageRes)
+                            SyncManager.upload(requireContext())
+                        }
+                        withContext(Dispatchers.Main) {
+                            dialog.dismiss()
+                            updateUI()
+                            Toast.makeText(requireContext(), "Bienvenido, ${user.username}!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    is SupabaseClient.AuthResult.Error -> {
+                        withContext(Dispatchers.Main) {
+                            tvError.text = result.message
+                            tvError.visibility = View.VISIBLE
+                            btnAction.text = if (currentIsLogin) "Iniciar sesión" else "Registrarse"
+                            btnAction.isEnabled = true
                         }
                     }
                 }
             }
-        )
-    }
-
-    private fun changeAdminSettingWithPinCheck(onVerified: () -> Unit) {
-        val currentAdminPin = UserPreferences.parentalControlAdminPin
-        if (currentAdminPin.isBlank()) {
-            onVerified()
-            return
         }
 
-        promptForAdminPin(onVerified)
-    }
-
-    private fun promptForAdminPin(onVerified: () -> Unit) {
-        val currentAdminPin = UserPreferences.parentalControlAdminPin
-        if (currentAdminPin.isBlank()) {
-            Toast.makeText(requireContext(), getString(R.string.settings_parental_set_admin_pin_first), Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        promptForPin(
-            titleRes = R.string.settings_parental_enter_admin_pin_title,
-            messageRes = R.string.settings_parental_enter_admin_pin_message,
-            onSubmit = { enteredPin ->
-                if (enteredPin == currentAdminPin) {
-                    UserPreferences.unlockParentalControls()
-                    onVerified()
-                    null
-                } else {
-                    getString(R.string.settings_parental_invalid_admin_pin)
-                }
-            }
-        )
-    }
-
-    private fun showParentalPinEditor(maxAgePreference: ListPreference?) {
-        if (!UserPreferences.enableTmdb) {
-            Toast.makeText(requireContext(), getString(R.string.settings_parental_requires_tmdb), Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        changeParentalSettingWithPinCheck {
-            promptForPinValue(
-                titleRes = R.string.settings_parental_pin_title,
-                messageRes = if (UserPreferences.parentalControlPin.isBlank()) {
-                    R.string.settings_parental_set_new_pin_message
-                } else {
-                    R.string.settings_parental_change_pin_message
-                },
-                allowBlank = UserPreferences.parentalControlPin.isNotBlank(),
-                onSubmit = { newPin ->
-                    when {
-                        newPin.isBlank() -> {
-                            UserPreferences.parentalControlPin = ""
-                            UserPreferences.parentalControlMaxAge = null
-                            maxAgePreference?.value = ""
-                            UserPreferences.unlockParentalControls()
-                            Toast.makeText(requireContext(), getString(R.string.settings_parental_pin_removed), Toast.LENGTH_SHORT).show()
-                            ProviderChangeNotifier.notifyProviderChanged()
-                            updateParentalControlPreferenceState()
-                            null
-                        }
-                        newPin.length < 4 -> getString(R.string.settings_parental_pin_too_short)
-                        else -> {
-                            UserPreferences.parentalControlPin = newPin
-                            Toast.makeText(requireContext(), getString(R.string.settings_parental_pin_saved), Toast.LENGTH_SHORT).show()
-                            ProviderChangeNotifier.notifyProviderChanged()
-                            updateParentalControlPreferenceState()
-                            null
-                        }
-                    }
-                }
-            )
-        }
-    }
-
-    private fun showAdminPinEditor() {
-        changeAdminSettingWithPinCheck {
-            promptForPinValue(
-                titleRes = R.string.settings_parental_admin_pin_title,
-                messageRes = if (UserPreferences.parentalControlAdminPin.isBlank()) {
-                    R.string.settings_parental_set_new_admin_pin_message
-                } else {
-                    R.string.settings_parental_change_admin_pin_message
-                },
-                allowBlank = UserPreferences.parentalControlAdminPin.isNotBlank(),
-                onSubmit = { newPin ->
-                    when {
-                        newPin.isBlank() -> {
-                            UserPreferences.parentalControlAdminPin = ""
-                            Toast.makeText(requireContext(), getString(R.string.settings_parental_admin_pin_removed), Toast.LENGTH_SHORT).show()
-                            updateParentalControlPreferenceState()
-                            null
-                        }
-                        newPin.length < 4 -> getString(R.string.settings_parental_pin_too_short)
-                        else -> {
-                            UserPreferences.parentalControlAdminPin = newPin
-                            Toast.makeText(requireContext(), getString(R.string.settings_parental_admin_pin_saved), Toast.LENGTH_SHORT).show()
-                            updateParentalControlPreferenceState()
-                            null
-                        }
-                    }
-                }
-            )
-        }
-    }
-
-    private fun promptForPin(
-        titleRes: Int,
-        messageRes: Int,
-        onSubmit: (String) -> String?,
-    ) {
-        val input = android.widget.EditText(requireContext()).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            imeOptions = EditorInfo.IME_ACTION_DONE
-            hint = getString(R.string.settings_parental_pin_hint)
-        }
-
-        val dialog = AlertDialog.Builder(requireContext())
-            .setTitle(titleRes)
-            .setMessage(messageRes)
-            .setView(input)
-            .setPositiveButton(android.R.string.ok, null)
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
-
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                input.error = null
-                val errorMessage = onSubmit(input.text?.toString()?.trim().orEmpty())
-                if (errorMessage == null) {
-                    dialog.dismiss()
-                } else {
-                    input.setText("")
-                    input.error = errorMessage
-                    input.requestFocus()
-                }
-            }
-        }
-
+        dialog.setContentView(dialogView)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         dialog.show()
     }
 
-    private fun promptForPinValue(
-        titleRes: Int,
-        messageRes: Int,
-        allowBlank: Boolean,
-        onSubmit: (String) -> String?,
-    ) {
-        val input = android.widget.EditText(requireContext()).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            imeOptions = EditorInfo.IME_ACTION_DONE
-            hint = getString(R.string.settings_parental_pin_hint)
-        }
+    private fun performSync() {
+        binding.pbSettingsLoading.visibility = View.VISIBLE
+        binding.btnSettingsSync.isEnabled = false
+        binding.btnSettingsSync.text = "Sincronizando..."
 
-        val dialog = AlertDialog.Builder(requireContext())
-            .setTitle(titleRes)
-            .setMessage(messageRes)
-            .setView(input)
-            .setPositiveButton(android.R.string.ok, null)
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
+        lifecycleScope.launch {
+            val uploadOk = SyncManager.upload(requireContext())
+            val downloadOk = SyncManager.download(requireContext(), clearFirst = false)
 
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                input.error = null
-                val newValue = input.text?.toString()?.trim().orEmpty()
-                if (newValue.isBlank() && !allowBlank) {
-                    input.setText("")
-                    input.error = getString(R.string.settings_parental_pin_too_short)
-                    input.requestFocus()
-                    return@setOnClickListener
-                }
+            withContext(Dispatchers.Main) {
+                binding.pbSettingsLoading.visibility = View.GONE
+                binding.btnSettingsSync.isEnabled = true
+                binding.btnSettingsSync.text = "Sincronizar ahora"
 
-                val errorMessage = onSubmit(newValue)
-                if (errorMessage == null) {
-                    dialog.dismiss()
+                if (uploadOk && downloadOk) {
+                    Toast.makeText(requireContext(), "Sincronización completada", Toast.LENGTH_SHORT).show()
                 } else {
-                    input.setText("")
-                    input.error = errorMessage
-                    input.requestFocus()
+                    Toast.makeText(requireContext(), "Error en la sincronización", Toast.LENGTH_SHORT).show()
                 }
+                updateUI()
             }
         }
+    }
 
+    private fun showTermsDialog() {
+        val dialog = Dialog(requireContext())
+        val dialogView = LayoutInflater.from(requireContext())
+            .inflate(R.layout.wlf_dialog_list, null)
+
+        dialogView.findViewById<TextView>(R.id.tv_dialog_title).text = "Términos y condiciones"
+
+        val container = dialogView.findViewById<android.widget.LinearLayout>(R.id.ll_dialog_items)
+        val termsText = TextView(requireContext()).apply {
+            text = TERMS_AND_CONDITIONS
+            textSize = 13f
+            setTextColor(0xFFB8B8D1.toInt())
+            setPadding(16, 24, 16, 24)
+            setLineSpacing(4f, 1f)
+        }
+        container.addView(termsText)
+
+        dialog.setContentView(dialogView)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         dialog.show()
     }
 
-    private fun lockRemainingMinutes(): Int {
-        val millis = UserPreferences.parentalControlLockRemainingMillis
-        return ((millis + 60_000L - 1L) / 60_000L).toInt().coerceAtLeast(1)
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 
-    private suspend fun performBackupExport(uri: Uri) {
-        withBackupLoading(R.string.backup_export_title) {
-            val jsonData = withContext(Dispatchers.IO) {
-                backupRestoreManager.exportUserData()
-            }
-            if (jsonData != null) {
-                try {
-                    requireContext().contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        outputStream.writer().use { it.write(jsonData) }
-                        Toast.makeText(requireContext(), getString(R.string.backup_export_success), Toast.LENGTH_LONG).show()
-                    }
-                } catch (e: IOException) {
-                    Toast.makeText(requireContext(), getString(R.string.backup_export_error_write), Toast.LENGTH_LONG).show()
-                    Log.e("BackupExportMobile", "Error writing backup file", e)
-                }
-            } else {
-                Toast.makeText(requireContext(), getString(R.string.backup_data_not_generated), Toast.LENGTH_LONG).show()
-            }
-        }
-    }
+    companion object {
+        const val TERMS_AND_CONDITIONS = """WlfMovie - Términos y Condiciones
 
-    private suspend fun performBackupImport(uri: Uri) {
-        withBackupLoading(R.string.backup_import_title) {
-            try {
-                val jsonData = withContext(Dispatchers.IO) {
-                    val stringBuilder = StringBuilder()
-                    requireContext().contentResolver.openInputStream(uri)?.use { inputStream ->
-                        inputStream.bufferedReader().useLines { lines ->
-                            lines.forEach { stringBuilder.append(it) }
-                        }
-                    }
-                    stringBuilder.toString()
-                }
-                if (jsonData.isNotBlank()) {
-                    val success = withContext(Dispatchers.IO) {
-                        backupRestoreManager.importUserData(jsonData)
-                    }
-                    if (success) {
-                        Toast.makeText(requireContext(), getString(R.string.backup_import_success), Toast.LENGTH_LONG).show()
-                    } else {
-                        Toast.makeText(requireContext(), getString(R.string.backup_import_error), Toast.LENGTH_LONG).show()
-                    }
-                } else {
-                    Toast.makeText(requireContext(), getString(R.string.backup_import_empty_file), Toast.LENGTH_LONG).show()
-                }
-            } catch (e: Exception) {
-                Toast.makeText(requireContext(), getString(R.string.backup_import_read_error), Toast.LENGTH_LONG).show()
-                Log.e("BackupImportMobile", "Error reading/processing backup file", e)
-            }
-        }
-    }
+Última actualización: 31 de julio de 2026
 
-    private suspend fun performDatabaseBackupExport(uri: Uri) {
-        withBackupLoading(R.string.backup_db_export_title) {
-            val zipData = withContext(Dispatchers.IO) {
-                backupRestoreManager.exportDatabaseZip()
-            }
-            if (zipData != null) {
-                try {
-                    requireContext().contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        outputStream.write(zipData)
-                        Toast.makeText(requireContext(), getString(R.string.backup_db_export_success), Toast.LENGTH_LONG).show()
-                    }
-                } catch (e: IOException) {
-                    Toast.makeText(requireContext(), getString(R.string.backup_export_error_write), Toast.LENGTH_LONG).show()
-                    Log.e("BackupExportMobile", "Error writing database backup file", e)
-                }
-            } else {
-                Toast.makeText(requireContext(), getString(R.string.backup_data_not_generated), Toast.LENGTH_LONG).show()
-            }
-        }
-    }
+1. ACEPTACIÓN DE TÉRMINOS
+Al usar WlfMovie, aceptas estos términos. Si no estás de acuerdo, no uses la app.
 
-    private suspend fun performDatabaseBackupImport(uri: Uri) {
-        withBackupLoading(R.string.backup_db_import_title) {
-            try {
-                val zipBytes = withContext(Dispatchers.IO) {
-                    requireContext().contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                }
-                if (zipBytes == null || zipBytes.isEmpty()) {
-                    Toast.makeText(requireContext(), getString(R.string.backup_import_empty_file), Toast.LENGTH_LONG).show()
-                    return@withBackupLoading
-                }
-                val success = withContext(Dispatchers.IO) {
-                    backupRestoreManager.importDatabaseZip(zipBytes)
-                }
-                Toast.makeText(
-                    requireContext(),
-                    if (success) getString(R.string.backup_db_import_success) else getString(R.string.backup_import_error),
-                    Toast.LENGTH_LONG
-                ).show()
-            } catch (e: Exception) {
-                Toast.makeText(requireContext(), getString(R.string.backup_import_read_error), Toast.LENGTH_LONG).show()
-                Log.e("BackupImportMobile", "Error reading/processing database backup file", e)
-            }
-        }
-    }
+2. NATURALEZA DEL SERVICIO
+WlfMovie es una aplicación de catálogo que utiliza la API de TMDB (The Movie Database) para mostrar información sobre películas y series. La app NO aloja, almacena ni distribuye ningún contenido audiovisual.
 
-    private suspend fun <T> withBackupLoading(titleRes: Int, block: suspend () -> T): T {
-        showBackupLoadingDialog(titleRes)
-        return try {
-            block()
-        } finally {
-            hideBackupLoadingDialog()
-        }
-    }
+3. CONTENIDO DE TERCEROS
+Los enlaces de streaming provienen de proveedores externos independientes. WlfMovie no tiene control sobre la disponibilidad, calidad o legalidad del contenido de estos proveedores. El usuario es responsable de verificar que el uso de dicho contenido cumpla con las leyes de su país.
 
-    private fun showBackupLoadingDialog(titleRes: Int) {
-        if (!isAdded) return
-        if (backupLoadingDialog?.isShowing == true) {
-            backupLoadingDialog?.setTitle(titleRes)
-            return
-        }
+4. SIN GARANTÍA
+WlfMovie se proporciona "tal cual", sin garantía de ningún tipo. No garantizamos que la app funcione sin interrupciones o sea libre de errores.
 
-        val contentView = LayoutInflater.from(requireContext()).inflate(
-            R.layout.layout_is_loading_mobile,
-            null
-        )
-        contentView.findViewById<android.widget.TextView>(R.id.tv_is_loading_error)?.visibility = View.GONE
-        contentView.findViewById<Group>(R.id.g_is_loading_retry)?.visibility = View.GONE
+5. DATOS DE USUARIO
+- Los datos de sesión (email, username) se almacenan en Supabase.
+- Las contraseñas se hashean con SHA-256 antes de enviarse.
+- Los datos de sincronización (favoritos, pendientes) se encriptan con AES-256.
+- No almacenamos información personal adicional.
 
-        backupLoadingDialog = AlertDialog.Builder(requireContext())
-            .setTitle(titleRes)
-            .setView(contentView)
-            .setCancelable(false)
-            .create()
-            .apply {
-                setCanceledOnTouchOutside(false)
-                show()
-            }
-    }
+6. USO EDUCATIVO
+Esta aplicación está diseñada con fines educativos y de aprendizaje. El desarrollador no se responsabiliza del uso que se le dé.
 
-    private fun hideBackupLoadingDialog() {
-        backupLoadingDialog?.dismiss()
-        backupLoadingDialog = null
-    }
+7. PROPIEDAD INTELECTUAL
+- El catálogo es proporcionado por TMDB.
+- Los logos y marcas pertenecen a sus respectivos propietarios.
+- WlfMovie no reclama derechos sobre el contenido mostrado.
 
-    override fun onResume() {
-        super.onResume()
-        applyScreenTitle()
-        updateOverviewLabels()
-        updateProviderVisibilityState()
+8. LIMITACIÓN DE RESPONSABILIDAD
+El desarrollador de WlfMovie no será responsable de ningún daño directo, indirecto, incidental o consecuente que pueda surgir del uso de la aplicación.
 
-        findPreference<EditTextPreference>("provider_streamingcommunity_domain")?.apply {
-            val currentValue = UserPreferences.streamingcommunityDomain
-            summary = currentValue
-            if (currentValue == DEFAULT_DOMAIN_VALUE || currentValue == PREFS_ERROR_VALUE) {
-                text = null
-            } else {
-                text = currentValue
-            }
-        }
+9. CAMBIOS
+Nos reservamos el derecho de actualizar estos términos en cualquier momento.
 
-        findPreference<EditTextPreference>("TMDB_API_KEY")?.apply {
-            summary = if (UserPreferences.tmdbApiKey.isEmpty()) getString(R.string.settings_tmdb_api_key_summary) else UserPreferences.tmdbApiKey
-            text = UserPreferences.tmdbApiKey
-        }
-
-        findPreference<EditTextPreference>("SUBDL_API_KEY")?.apply {
-            summary = if (UserPreferences.subdlApiKey.isEmpty()) getString(R.string.settings_subdl_api_key_summary) else UserPreferences.subdlApiKey
-            text = UserPreferences.subdlApiKey
-        }
-
-        findPreference<ListPreference>("p_doh_provider_url")?.apply {
-            summary = entry
-        }
-
-        findPreference<ListPreference>("APP_LANGUAGE")?.value =
-            AppLanguageManager.getSelectedLanguage(requireContext())
-
-        findPreference<SwitchPreference>("AUTOPLAY")?.isChecked = UserPreferences.autoplay
-        findPreference<SwitchPreference>("FORCE_EXTRA_BUFFERING")?.isChecked = UserPreferences.forceExtraBuffering
-        findPreference<SwitchPreference>("PLAYER_GESTURES")?.isChecked = UserPreferences.playerGestures
-        findPreference<SwitchPreference>("KEEP_SCREEN_ON_WHEN_PAUSED")?.isChecked = UserPreferences.keepScreenOnWhenPaused
-        findPreference<SwitchPreferenceCompat>("ENABLE_TMDB")?.isChecked = UserPreferences.enableTmdb
-        updateParentalControlPreferenceState()
+10. CONTACTO
+Para consultas sobre estos términos, contacta a través del repositorio de GitHub."""
     }
 }

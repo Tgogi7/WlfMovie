@@ -130,7 +130,12 @@ class TvShowsTvFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val provider = UserPreferences.currentProvider ?: return@launch
-                val genres = provider.search("", 1).filterIsInstance<Genre>()
+                // WLFMOVIE V4: Obtener SOLO géneros de series (no de películas).
+                val language = provider.language
+                val tmdbGenres = com.mew.wlfmovie.utils.TMDb3.Genres.tvList(language = language).genres
+                val genres = tmdbGenres.map {
+                    Genre(id = it.id.toString(), name = it.name)
+                }
 
                 val allGenre = Genre(id = "destacados", name = "Destacados")
                 val fullGenres = listOf(allGenre) + genres
