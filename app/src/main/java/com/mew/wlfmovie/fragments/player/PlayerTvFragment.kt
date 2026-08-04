@@ -121,6 +121,7 @@ import androidx.core.net.toUri
 
 class PlayerTvFragment : Fragment() {
     companion object {
+        private const val TAG = "WlfMovie-Player"
         private const val NEXT_EPISODE_PREFETCH_THRESHOLD_MS = 60_000L
         private const val NEXT_EPISODE_OVERLAY_MIN_THRESHOLD_MS = 30_000L
         private const val NEXT_EPISODE_OVERLAY_ALPHA_UNFOCUSED = 0.72f
@@ -168,6 +169,12 @@ class PlayerTvFragment : Fragment() {
     private var nextEpisodePrefetchTargetId: String? = null
     private var nextEpisodePrefetchJob: Job? = null
     private var nextEpisodeOverlayDismissed = false
+    // Guard against duplicate "player finished" events firing onIsPlayingChanged(false)
+    // multiple times in rapid succession (ExoPlayer transitions through several states
+    // when a media item ends, which can trigger the callback 2+ times).
+    // Without this guard, each invocation of playNextEpisodeAcrossSeasons() advances the
+    // current episode by one, causing the player to skip an episode (e.g. E2 -> E4).
+    private var isAdvancingToNextEpisode = false
     private val chooserReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
@@ -689,17 +696,47 @@ class PlayerTvFragment : Fragment() {
     private fun playNextEpisodeAcrossSeasons(autoplay: Boolean = false) {
         val type = args.videoType as? Video.Type.Episode ?: return
 
+        // Guard: prevent re-entry. ExoPlayer fires onIsPlayingChanged(false) multiple
+        // times when an episode ends (STATE_ENDED plus transitions during the next
+        // media item setup). Without this guard, two concurrent coroutines end up
+        // calling viewModel.playNextEpisode() and we skip an episode.
+        if (isAdvancingToNextEpisode) {
+            Log.i(TAG, "playNextEpisodeAcrossSeasons: already advancing, skipping (autoplay=$autoplay)")
+            return
+        }
+        isAdvancingToNextEpisode = true
+        Log.i(TAG, "playNextEpisodeAcrossSeasons: autoplay=$autoplay, currentEpisode=${type.id} (S${type.season.number}E${type.number})")
+
         lifecycleScope.launch {
-            val hasNextEpisode = withContext(Dispatchers.IO) {
-                EpisodeManager.ensureNextEpisodeAvailable(type, database)
+            try {
+                val hasNextEpisode = withContext(Dispatchers.IO) {
+                    EpisodeManager.ensureNextEpisodeAvailable(type, database)
+                }
+
+                setupEpisodeNavigationButtons()
+
+                if (!hasNextEpisode) {
+                    Log.i(TAG, "playNextEpisodeAcrossSeasons: no next episode, releasing guard")
+                    isAdvancingToNextEpisode = false
+                    return@launch
+                }
+                if (autoplay && !UserPreferences.autoplay) {
+                    Log.i(TAG, "playNextEpisodeAcrossSeasons: autoplay disabled, releasing guard")
+                    isAdvancingToNextEpisode = false
+                    return@launch
+                }
+
+                val peekNext = EpisodeManager.peekNextEpisode()
+                Log.i(TAG, "playNextEpisodeAcrossSeasons: hasNextEpisode=true, peekNext=${peekNext?.let { "S${it.season?.number ?: 0}E${it.number} (${it.id})" }}")
+                Log.i(TAG, "playNextEpisodeAcrossSeasons: calling viewModel.playNextEpisode()")
+                viewModel.playNextEpisode()
+                // Guard is released in initializeVideo() once the new episode actually loads,
+                // NOT here. This prevents any further onIsPlayingChanged(false) events fired
+                // during the media-item transition from triggering another advance.
+            } catch (t: Throwable) {
+                Log.e(TAG, "playNextEpisodeAcrossSeasons: failed, releasing guard", t)
+                isAdvancingToNextEpisode = false
             }
-
-            setupEpisodeNavigationButtons()
-
-            if (!hasNextEpisode) return@launch
-            if (autoplay && !UserPreferences.autoplay) return@launch
-
-            viewModel.playNextEpisode()
         }
     }
 
@@ -766,6 +803,12 @@ class PlayerTvFragment : Fragment() {
         }
 
         private fun initializeVideo() {
+            // New episode is being set up. Release the advance guard so future
+            // "player finished" events can trigger another advance.
+            if (isAdvancingToNextEpisode) {
+                Log.i(TAG, "initializeVideo: releasing advance guard")
+            }
+            isAdvancingToNextEpisode = false
             when (val type = args.videoType) {
                 is Video.Type.Episode -> {
                     nextEpisodeOverlayDismissed = false
@@ -1357,6 +1400,7 @@ class PlayerTvFragment : Fragment() {
                         }
                         if (player.hasReallyFinished()) {
                             if (UserPreferences.autoplay) {
+                                Log.i(TAG, "onIsPlayingChanged: player finished! autoplay=true")
                                 playNextEpisodeAcrossSeasons(autoplay = true)
                             }
                         }

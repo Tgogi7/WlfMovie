@@ -881,12 +881,15 @@ binding.btnTvShowFavorite.apply {
     private fun showSeasonsDialog() {
         val seasons = tvShow.seasons
         if (seasons.size == 1) {
-            // Si solo hay una temporada, ir directo a episodios
-            showEpisodesDialog(seasons.first())
+            // Si solo hay una temporada, ir directo a la lista de episodios
+            // (formato nuevo — SeasonFragment con item_episode_*).
+            navigateToSeason(seasons.first())
             return
         }
 
-        // Diálogo WlfMovie con lista de temporadas
+        // Diálogo WlfMovie con lista de temporadas.
+        // Al click, siempre navegamos a SeasonFragment (formato nuevo con fotos,
+        // overview, progreso, etc.) en lugar del diálogo texto-only viejo.
         val dialog = android.app.Dialog(context)
         val dialogView = android.view.LayoutInflater.from(context)
             .inflate(com.mew.wlfmovie.R.layout.wlf_dialog_list, null)
@@ -899,7 +902,7 @@ binding.btnTvShowFavorite.apply {
             item.text = season.title ?: "Temporada ${season.number}"
             item.setOnClickListener {
                 dialog.dismiss()
-                showEpisodesDialog(season)
+                navigateToSeason(season)
             }
             container.addView(item)
         }
@@ -907,128 +910,5 @@ binding.btnTvShowFavorite.apply {
         dialog.setContentView(dialogView)
         dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         dialog.show()
-    }
-
-    private fun showEpisodesDialog(season: com.mew.wlfmovie.models.Season) {
-        val navController = itemView.findNavController()
-
-        // Mostrar diálogo de carga
-        val dialog = android.app.Dialog(context)
-        val dialogView = android.view.LayoutInflater.from(context)
-            .inflate(com.mew.wlfmovie.R.layout.wlf_dialog_list, null)
-
-        // WLFMOVIE: Título con flecha ← para volver a temporadas.
-        // Siempre se muestra la flecha cuando hay múltiples temporadas, para
-        // que el usuario sepa dónde está y pueda volver.
-        val titleText = dialogView.findViewById<android.widget.TextView>(com.mew.wlfmovie.R.id.tv_dialog_title)
-        val seasons = tvShow.seasons
-        if (seasons.size > 1) {
-            // WLFMOVIE: flecha + nombre de la temporada, alineado a la izquierda
-            // para que se vea claramente que es un botón de "volver".
-            titleText.text = "←  ${season.title ?: "Temporada ${season.number}"}"
-            titleText.gravity = android.view.Gravity.START
-            titleText.textAlignment = android.view.View.TEXT_ALIGNMENT_VIEW_START
-            titleText.setPadding(32, 16, 32, 16)
-            // WLFMOVIE: Fondo que cambia al recibir foco (morado con borde fucsia).
-            titleText.background = ContextCompat.getDrawable(context, com.mew.wlfmovie.R.drawable.wlf_bg_dialog_back_button)
-            titleText.setOnClickListener {
-                dialog.dismiss()
-                showSeasonsDialog()
-            }
-            // WLFMOVIE: Hacer el título focusable para que se pueda navegar con D-pad.
-            // Cuando recibe foco, el fondo cambia a morado con borde fucsia.
-            titleText.isFocusable = true
-            titleText.isFocusableInTouchMode = true
-            // WLFMOVIE: Request focus al abrir para que se vea que es focusable.
-            titleText.requestFocus()
-        } else {
-            titleText.text = season.title ?: "Temporada ${season.number}"
-        }
-
-        val container = dialogView.findViewById<android.widget.LinearLayout>(com.mew.wlfmovie.R.id.ll_dialog_items)
-        val loadingText = android.widget.TextView(context).apply {
-            text = "Cargando episodios..."
-            gravity = android.view.Gravity.CENTER
-            setTextColor(android.graphics.Color.WHITE)
-            setPadding(40, 40, 40, 40)
-        }
-        container.addView(loadingText)
-
-        dialog.setContentView(dialogView)
-        dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
-        dialog.show()
-
-        // Cargar episodios en background
-        itemView.findViewTreeLifecycleOwner()?.lifecycleScope?.launch(Dispatchers.IO) {
-            try {
-                val provider = com.mew.wlfmovie.utils.UserPreferences.currentProvider
-                val episodes = provider?.getEpisodesBySeason(season.id) ?: emptyList()
-
-                withContext(Dispatchers.Main) {
-                    if (_binding == null || !dialog.isShowing) return@withContext
-
-                    container.removeAllViews()
-                    if (episodes.isEmpty()) {
-                        val emptyText = android.widget.TextView(context).apply {
-                            text = "No hay episodios disponibles"
-                            gravity = android.view.Gravity.CENTER
-                            setTextColor(android.graphics.Color.WHITE)
-                            setPadding(40, 40, 40, 40)
-                        }
-                        container.addView(emptyText)
-                    } else {
-                        episodes.forEach { episode ->
-                            val item = android.view.LayoutInflater.from(context)
-                                .inflate(com.mew.wlfmovie.R.layout.wlf_dialog_list_item, container, false) as android.widget.TextView
-                            item.text = "E${episode.number} · ${episode.title ?: ""}"
-                            item.setOnClickListener {
-                                dialog.dismiss()
-                                // Navegar al player con este episodio
-                                val videoType = com.mew.wlfmovie.models.Video.Type.Episode(
-                                    id = episode.id,
-                                    number = episode.number,
-                                    title = episode.title,
-                                    poster = episode.poster,
-                                    overview = episode.overview,
-                                    tvShow = com.mew.wlfmovie.models.Video.Type.Episode.TvShow(
-                                        id = tvShow.id,
-                                        title = tvShow.title,
-                                        poster = tvShow.poster,
-                                        banner = tvShow.banner,
-                                        releaseDate = tvShow.released?.format("yyyy-MM-dd"),
-                                        imdbId = tvShow.imdbId,
-                                    ),
-                                    season = com.mew.wlfmovie.models.Video.Type.Episode.Season(
-                                        number = season.number,
-                                        title = season.title,
-                                    ),
-                                )
-                                val args = android.os.Bundle().apply {
-                                    putString("id", episode.id)
-                                    putString("title", tvShow.title)
-                                    putString("subtitle", "S${season.number} E${episode.number}  •  ${episode.title}")
-                                    putSerializable("videoType", videoType)
-                                }
-                                navController.navigate(com.mew.wlfmovie.R.id.player, args)
-                            }
-                            container.addView(item)
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    if (dialog.isShowing) {
-                        container.removeAllViews()
-                        val errorText = android.widget.TextView(context).apply {
-                            text = "Error: ${e.message}"
-                            gravity = android.view.Gravity.CENTER
-                            setTextColor(android.graphics.Color.WHITE)
-                            setPadding(40, 40, 40, 40)
-                        }
-                        container.addView(errorText)
-                    }
-                }
-            }
-        }
     }
 }
