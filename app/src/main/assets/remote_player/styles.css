@@ -1,0 +1,298 @@
+/* WlfMovie Remote Player — Tema oscuro con acentos fucsia */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0a0a0f;
+    color: #fff;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+#app {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+    overflow: hidden;
+}
+
+/* Header con logo */
+#header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    z-index: 10;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+    transition: opacity 0.3s;
+}
+
+.logo img {
+    display: block;
+}
+
+/* Título y subtítulo */
+#info {
+    position: absolute;
+    top: 80px;
+    left: 32px;
+    right: 32px;
+    z-index: 10;
+    transition: opacity 0.3s;
+}
+
+#title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+    margin-bottom: 4px;
+}
+
+#subtitle {
+    font-size: 16px;
+    color: #c0c0d0;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+}
+
+/* Video container */
+#video-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+}
+
+#video {
+    max-width: 100%;
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Buffering spinner */
+.spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px;
+    height: 60px;
+    border: 4px solid rgba(155, 89, 255, 0.2);
+    border-top-color: #ff3df0;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    z-index: 5;
+}
+
+@keyframes spin {
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Error */
+.error {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 5;
+    background: rgba(20, 10, 30, 0.95);
+    padding: 24px 40px;
+    border-radius: 12px;
+    border: 1px solid #ff3df0;
+}
+
+.error p {
+    color: #ff3df0;
+    font-size: 16px;
+    margin-bottom: 16px;
+}
+
+#error-message {
+    color: #fff;
+    font-size: 14px;
+}
+
+#retry-btn {
+    background: #ff3df0;
+    color: #fff;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+#retry-btn:hover {
+    background: #e02dd0;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Controles */
+#controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 16px 32px 24px;
+    z-index: 10;
+    background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+    transition: opacity 0.3s;
+}
+
+.progress-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.time {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 13px;
+    color: #fff;
+    min-width: 80px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+}
+
+.time:first-child {
+    text-align: left;
+}
+
+.time:last-child {
+    text-align: right;
+}
+
+#progress-bar {
+    flex: 1;
+    height: 14px;
+    position: relative;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+#progress-bar::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+}
+
+#progress-buffered {
+    position: absolute;
+    left: 0;
+    height: 4px;
+    background: rgba(255,255,255,0.4);
+    border-radius: 2px;
+    transition: width 0.3s;
+}
+
+#progress-played {
+    position: absolute;
+    left: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #9b59ff, #ff3df0);
+    border-radius: 2px;
+    transition: width 0.1s linear;
+}
+
+#progress-thumb {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    background: #ff3df0;
+    border-radius: 50%;
+    transform: translateX(-50%);
+    box-shadow: 0 0 8px rgba(255, 61, 240, 0.6);
+    transition: transform 0.1s;
+}
+
+#progress-bar:hover #progress-thumb {
+    transform: translateX(-50%) scale(1.2);
+}
+
+.buttons-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+}
+
+.btn {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn:hover {
+    background: rgba(255, 61, 240, 0.3);
+}
+
+.btn-play {
+    width: 56px;
+    height: 56px;
+    font-size: 20px;
+}
+
+.btn-fullscreen {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+    position: absolute;
+    right: 32px;
+    bottom: 24px;
+}
+
+/* Estados ocultos */
+#app.hide-ui #header,
+#app.hide-ui #info,
+#app.hide-ui #controls {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#app.hide-ui #video-container {
+    cursor: none;
+}
+
+/* Pantalla completa */
+#app:fullscreen {
+    background: #000;
+}
+
+#app:fullscreen #video {
+    object-fit: contain;
+}

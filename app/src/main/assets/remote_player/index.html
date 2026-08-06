@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WlfMovie Remote Player</title>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <link rel="icon" type="image/svg+xml" href="/logo">
+</head>
+<body>
+    <div id="app">
+        <!-- Header con logo (se oculta tras 3s de inactividad) -->
+        <header id="header">
+            <div class="logo">
+                <img src="/logo" alt="WlfMovie" height="32">
+            </div>
+        </header>
+
+        <!-- Título + subtítulo (se ocultan tras 3s) -->
+        <div id="info">
+            <h1 id="title">Cargando...</h1>
+            <p id="subtitle"></p>
+        </div>
+
+        <!-- Contenedor del video -->
+        <div id="video-container">
+            <video id="video" playsinline></video>
+            <div id="buffering" class="spinner"></div>
+            <div id="error" class="error hidden">
+                <p id="error-message"></p>
+                <button id="retry-btn">Reintentar</button>
+            </div>
+        </div>
+
+        <!-- Controles (se ocultan tras 3s) -->
+        <div id="controls">
+            <div class="progress-row">
+                <span id="current-time" class="time">00:00:00</span>
+                <div id="progress-bar">
+                    <div id="progress-buffered"></div>
+                    <div id="progress-played"></div>
+                    <div id="progress-thumb"></div>
+                </div>
+                <span id="duration" class="time">00:00:00</span>
+            </div>
+            <div class="buttons-row">
+                <button id="play-pause" class="btn btn-play">▶</button>
+                <button id="fullscreen" class="btn btn-fullscreen" title="Pantalla completa (F)">⛶</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/assets/hls.min.js"></script>
+    <script src="/assets/app.js"></script>
+</body>
+</html>

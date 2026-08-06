@@ -100,9 +100,28 @@
         android:textSize="13sp"
         android:textStyle="bold"
         android:visibility="gone"
-        app:layout_constraintEnd_toStartOf="@id/btn_exo_servers"
+        app:layout_constraintEnd_toStartOf="@id/btn_cast_to_pc"
         app:layout_constraintTop_toTopOf="parent"
         tools:visibility="visible" />
+
+    <!-- WLFMOVIE Update 5: Botón "Reproducir en PC" (laptop).
+         Al tocar, levanta el servidor local y muestra overlay con URL para abrir en PC. -->
+    <ImageView
+        android:id="@+id/btn_cast_to_pc"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/wlf_bg_icon_button_selector"
+        android:clickable="true"
+        android:contentDescription="Reproducir en PC"
+        android:focusable="true"
+        android:padding="8dp"
+        android:src="@drawable/ic_cast_to_pc"
+        android:tint="@color/wlf_text_primary"
+        app:layout_constraintEnd_toStartOf="@id/btn_exo_servers"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="UseAppTint" />
 
     <!-- Botón Servers (chip con texto) -->
     <TextView
