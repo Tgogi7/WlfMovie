@@ -22,7 +22,11 @@ let hls = null;
 let hideUiTimer = null;
 let ws = null;
 let positionReportTimer = null;
+let pingTimer = null;
 let lastReportedPosition = -1;
+let videoLoaded = false;  // evita recargar el video al reconectar el WS
+let currentVideoUrl = null;
+let stopReceived = false;  // true cuando el mobile envió 'stop' intencionalmente
 
 // ===== Init =====
 
@@ -100,6 +104,8 @@ function connectWebSocket(url) {
         wsSend({ type: 'ready' });
         // Arrancar el reporte de posición cada 10s
         startPositionReporting();
+        // Ping cada 25s para mantener el WebSocket vivo (algunos routers cierran conexiones idle)
+        startPing();
     };
 
     ws.onmessage = (event) => {
@@ -113,9 +119,18 @@ function connectWebSocket(url) {
     };
 
     ws.onclose = () => {
-        console.log('[WlfMovie Remote] WebSocket cerrado');
+        console.log('[WlfMovie Remote] WebSocket cerrado (stopReceived=' + stopReceived + ')');
         stopPositionReporting();
-        // Reconectar en 2s (el service del celular sigue vivo)
+        stopPing();
+        // Si el mobile envió 'stop' intencionalmente, NO mostrar "conexión perdida"
+        // — ya mostramos "Detenido desde el celular".
+        // Si el video estaba cargado y NO fue stop intencional, es conexión perdida.
+        if (!stopReceived && videoLoaded) {
+            showConnectionLost();
+        }
+        // Resetear el flag para la próxima reconexión
+        stopReceived = false;
+        // Reconectar en 2s para escuchar si el móvil envía un nuevo video_info
         setTimeout(() => {
             if (ws === null || ws.readyState === WebSocket.CLOSED) {
                 connectWebSocket(url);
@@ -137,15 +152,24 @@ function wsSend(obj) {
 function handleServerMessage(msg) {
     switch (msg.type) {
         case 'video_info':
-            // El celular nos mandó la info del video (cuando reconectamos)
+            // El celular nos mandó la info del video.
+            // Resetear estado y recargar SIEMPRE — el móvil puede mandar un video nuevo
+            // (ej: cuando el user comparte otro ep después de un stop).
+            console.log('[WlfMovie Remote] video_info recibido:', msg);
             titleEl.textContent = msg.title || 'WlfMovie';
             const subtitle = msg.subtitle || '';
             subtitleEl.textContent = subtitle;
             subtitleEl.style.display = subtitle ? 'block' : 'none';
-            // Recargar el video si cambió
-            if (video.src === '' || !video.src.includes('/stream')) {
-                loadVideo(msg.url || '/stream', msg.position || 0, msg.isHls || false);
-            }
+
+            // Resetear posición reportada para que el sync empiece limpio
+            lastReportedPosition = -1;
+
+            // Ocultar cualquier error previo (estaba en modo "esperando video nuevo")
+            hideError();
+            bufferingEl.style.display = 'block';
+
+            // Recargar el video con la nueva posición
+            loadVideo(msg.url || '/stream', msg.position || 0, msg.isHls || false);
             break;
         case 'play':
             video.play().catch(err => console.warn('[WlfMovie Remote] play blocked:', err));
@@ -159,11 +183,49 @@ function handleServerMessage(msg) {
             }
             break;
         case 'stop':
-            // El celular nos pide que cerremos
+            // El celular detuvo el cast intencionalmente.
+            // Mostrar mensaje y esperar a que llegue un video_info nuevo
+            // (NO reintentar automáticamente).
+            console.log('[WlfMovie Remote] stop desde mobile');
+            stopReceived = true;  // flag para que ws.onclose no muestre "conexión perdida"
             video.pause();
-            showError('El celular detuvo la reproducción');
+            videoLoaded = false;
+            // Destruir HLS para liberar recursos
+            if (hls) {
+                hls.destroy();
+                hls = null;
+            }
+            video.removeAttribute('src');
+            video.load();
+            showStopMessage();
             break;
     }
+}
+
+/**
+ * Muestra mensaje de "stop desde mobile" — sin botón de reintentar.
+ * El usuario tiene que abrir la URL de nuevo o esperar a que el móvil
+ * envíe un nuevo video_info.
+ */
+function showStopMessage() {
+    errorMessageEl.textContent = 'Detenido desde el celular';
+    errorEl.querySelector('p').textContent = '';
+    retryBtn.style.display = 'none';
+    errorEl.classList.remove('hidden');
+    bufferingEl.style.display = 'none';
+}
+
+/**
+ * Muestra error de conexión perdida — con botón reintentar.
+ * Se usa cuando el WebSocket se cae por timeout o la IP cambió.
+ */
+function showConnectionLost() {
+    errorMessageEl.textContent = 'Conexión perdida';
+    errorEl.querySelector('p').textContent = 'Verificá que el celular siga abierto';
+    retryBtn.style.display = '';
+    retryBtn.textContent = 'Reintentar';
+    errorEl.classList.remove('hidden');
+    bufferingEl.style.display = 'none';
 }
 
 // ===== Reporte de posición cada 10s =====
@@ -197,6 +259,21 @@ function stopPositionReporting() {
     }
 }
 
+// Ping cada 25s para mantener el WebSocket vivo (evita que routers/servers cierren la conexión idle)
+function startPing() {
+    stopPing();
+    pingTimer = setInterval(() => {
+        wsSend({ type: 'ping' });
+    }, 25000);
+}
+
+function stopPing() {
+    if (pingTimer) {
+        clearInterval(pingTimer);
+        pingTimer = null;
+    }
+}
+
 // Reportar inmediatamente en eventos importantes
 function reportPositionNow() {
     if (!video.duration || !isFinite(video.duration)) return;
@@ -223,6 +300,7 @@ function loadVideo(url, startPosition, isHls) {
     bufferingEl.style.display = 'block';
     hideError();
 
+    currentVideoUrl = url;
     const useHls = isHls || url.includes('.m3u8');
 
     if (useHls && Hls.isSupported()) {
@@ -235,6 +313,7 @@ function loadVideo(url, startPosition, isHls) {
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
             console.log('[WlfMovie Remote] manifest parsed, ready to play');
+            videoLoaded = true;
             if (startPosition > 0) {
                 video.currentTime = startPosition / 1000;
             }
@@ -250,6 +329,7 @@ function loadVideo(url, startPosition, isHls) {
         console.log('[WlfMovie Remote] usando HLS nativo (Safari)');
         video.src = url;
         video.addEventListener('loadedmetadata', () => {
+            videoLoaded = true;
             if (startPosition > 0) {
                 video.currentTime = startPosition / 1000;
             }
@@ -259,6 +339,7 @@ function loadVideo(url, startPosition, isHls) {
         console.log('[WlfMovie Remote] usando video nativo');
         video.src = url;
         video.addEventListener('loadedmetadata', () => {
+            videoLoaded = true;
             if (startPosition > 0) {
                 video.currentTime = startPosition / 1000;
             }
@@ -447,7 +528,19 @@ function hideError() {
 
 retryBtn.addEventListener('click', () => {
     hideError();
-    loadVideo('/stream', video.currentTime ? video.currentTime * 1000 : 0, true);
+    // Reconectar WebSocket — cuando se reconecte, el móvil enviará video_info
+    // con la posición correcta y se recargará el video desde ahí.
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        console.log('[WlfMovie Remote] retry: WebSocket ya está conectado, esperando video_info');
+    } else {
+        console.log('[WlfMovie Remote] retry: reconectando WebSocket');
+        // Forzar reconexión — buscar la URL del WS desde /info
+        fetch('/info').then(r => r.json()).then(info => {
+            if (info.wsUrl) {
+                connectWebSocket(info.wsUrl);
+            }
+        }).catch(err => console.error('[WlfMovie Remote] retry error:', err));
+    }
 });
 
 // Start

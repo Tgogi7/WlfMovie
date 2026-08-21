@@ -190,14 +190,14 @@ class TvShowTvFragment : Fragment() {
             set.add(tvShow.id)
             binding.btnOverlayWatchLater.setImageResource(R.drawable.wlf_ic_check)
             Toast.makeText(requireContext(), "Añadido a Ver después", Toast.LENGTH_SHORT).show()
-            com.mew.wlfmovie.utils.SyncManager.autoUpload(requireContext())
         } else {
             set.remove(tvShow.id)
             binding.btnOverlayWatchLater.setImageResource(R.drawable.wlf_ic_watch_later)
             Toast.makeText(requireContext(), "Quitado de Ver después", Toast.LENGTH_SHORT).show()
-            com.mew.wlfmovie.utils.SyncManager.autoUpload(requireContext())
         }
+        // WLFMOVIE V5.1: Guardar en prefs ANTES de subir a la nube (evita race condition)
         prefs.edit().putStringSet("tv_shows", set).apply()
+        com.mew.wlfmovie.utils.SyncManager.autoUpload(requireContext())
     }
 
     // =================================================================

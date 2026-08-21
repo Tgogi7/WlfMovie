@@ -223,6 +223,13 @@
             app:popUpTo="@id/player"
             app:popUpToInclusive="true" />
     </fragment>
+
+    <!-- WLFMOVIE Update 5: Pantalla Remote Play (reproducir en PC) -->
+    <fragment
+        android:id="@+id/remote_play"
+        android:name="com.mew.wlfmovie.remoteplay.RemotePlayFragment"
+        android:label="fragment_remote_play"
+        tools:layout="@layout/fragment_remote_play" />
     <fragment
         android:id="@+id/settings"
         android:name="com.mew.wlfmovie.fragments.settings.SettingsMobileFragment"

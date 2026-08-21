@@ -139,8 +139,36 @@ interface EpisodeDao {
     )
     fun resetProgressionFromEpisode(id: String)
 
+    /**
+     * WLFMOVIE Update 5: Marca todos los episodios ANTERIORES al dado (misma serie)
+     * como vistos y limpia su watchHistory. Esto es lo que debería pasar cuando
+     * un user termina un episodio: los anteriores también deben quedar como vistos.
+     *
+     * Sin esto, si el user salta directo al último episodio y lo termina, los
+     * anteriores siguen con watchHistory → isStillWatching=true → la serie no
+     * se quita del continue watching.
+     */
+    @Query(
+        """
+        UPDATE episodes
+        SET isWatched = 1, lastEngagementTimeUtcMillis = NULL, lastPlaybackPositionMillis = NULL, durationMillis = NULL
+        WHERE id IN (
+            SELECT episode.id
+            FROM episodes episode
+            LEFT JOIN seasons season ON episode.season = season.id
+            JOIN (
+                  SELECT episode.tvShow AS tvShow, season.number AS seasonNumber, episode.number AS number
+                  FROM episodes episode
+                  LEFT JOIN seasons season ON episode.season = season.id
+                  WHERE episode.id = :id
+            ) episode2 ON (episode.tvShow = episode2.tvShow AND (season.number < episode2.seasonNumber OR (season.number = episode2.seasonNumber AND episode.number < episode2.number)))
+        )
+        """
+    )
+    fun markPreviousEpisodesWatched(id: String)
+
     @Query("""
-    SELECT e.* 
+    SELECT e.*
     FROM episodes e
     JOIN seasons s ON s.id = e.season
     WHERE e.tvShow = :tvShowId AND s.number = :seasonNumber

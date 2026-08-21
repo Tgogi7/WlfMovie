@@ -20,6 +20,7 @@ import com.mew.wlfmovie.databinding.FragmentListsMobileBinding
 import com.mew.wlfmovie.models.Movie
 import com.mew.wlfmovie.models.TvShow
 import com.mew.wlfmovie.utils.UserPreferences
+import com.mew.wlfmovie.utils.toFragment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -55,7 +56,7 @@ class ListsMobileFragment : Fragment() {
         loadLists()
     }
 
-    private fun loadLists() {
+    fun loadLists() {
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val favMovies = database.movieDao().getFavorites().first()
             val favTvShows = database.tvShowDao().getFavorites().first()
@@ -198,50 +199,73 @@ class CardAdapter(
     }
 
     override fun onBindViewHolder(holder: CardViewHolder, position: Int) {
-        holder.bind(items[position], onItemClick) { removedItem ->
-            // X click → quitar de la lista
+        holder.bind(items[position], onItemClick, itemType) { removedItem, currentListType ->
+            // X click → quitar SOLO de la lista donde se tocó la X
             val ctx = holder.itemView.context
             val db = AppDatabase.getInstance(ctx)
+            val scope = holder.itemView.findViewTreeLifecycleOwner()?.lifecycleScope
 
-            when (removedItem) {
-                is Movie -> {
-                    val scope = holder.itemView.findViewTreeLifecycleOwner()?.lifecycleScope
-                    scope?.launch(Dispatchers.IO) {
-                        val dbMovie = db.movieDao().getById(removedItem.id)
-                        dbMovie?.let {
-                            it.isFavorite = false
-                            it.favoritedAtMillis = null
-                            db.movieDao().insert(it)
+            // Determinar de qué lista quitar según el section title
+            // currentListType es el itemType de la sección: "movie", "tv", o "mixed"
+            // "movie" = Películas favoritas
+            // "tv" = Series favoritas
+            // "mixed" = Pendientes por ver (watch later)
+            val isWatchLaterList = currentListType == "mixed"
+
+            scope?.launch(Dispatchers.IO) {
+                if (isWatchLaterList) {
+                    // Quitar SOLO de watch later
+                    val prefs = ctx.getSharedPreferences("wlfmovie_watch_later", Context.MODE_PRIVATE)
+                    when (removedItem) {
+                        is Movie -> {
+                            val movieSet = prefs.getStringSet("movies", emptySet())!!.toMutableSet()
+                            movieSet.remove(removedItem.id)
+                            prefs.edit().putStringSet("movies", movieSet).apply()
+                        }
+                        is TvShow -> {
+                            val tvSet = prefs.getStringSet("tv_shows", emptySet())!!.toMutableSet()
+                            tvSet.remove(removedItem.id)
+                            prefs.edit().putStringSet("tv_shows", tvSet).apply()
                         }
                     }
-                }
-                is TvShow -> {
-                    val scope = holder.itemView.findViewTreeLifecycleOwner()?.lifecycleScope
-                    scope?.launch(Dispatchers.IO) {
-                        val dbTv = db.tvShowDao().getById(removedItem.id)
-                        dbTv?.let {
-                            it.isFavorite = false
-                            it.favoritedAtMillis = null
-                            db.tvShowDao().insert(it)
+                    com.mew.wlfmovie.utils.SyncManager.autoUpload(ctx)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(ctx, "Quitado de Pendientes por ver", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    // Qitar SOLO de favoritos
+                    when (removedItem) {
+                        is Movie -> {
+                            val dbMovie = db.movieDao().getById(removedItem.id)
+                            dbMovie?.let {
+                                it.isFavorite = false
+                                it.favoritedAtMillis = null
+                                db.movieDao().insert(it)
+                            }
+                        }
+                        is TvShow -> {
+                            val dbTv = db.tvShowDao().getById(removedItem.id)
+                            dbTv?.let {
+                                it.isFavorite = false
+                                it.favoritedAtMillis = null
+                                db.tvShowDao().insert(it)
+                            }
                         }
                     }
+                    com.mew.wlfmovie.utils.SyncManager.autoUpload(ctx)
+                    val listName = if (currentListType == "movie") "Películas favoritas" else "Series favoritas"
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(ctx, "Quitado de $listName", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                // Refrescar la lista para que el item desaparezca visualmente
+                withContext(Dispatchers.Main) {
+                    // Buscar el fragment dueño y recargar
+                    val fragment = ctx.toFragment()
+                    (fragment as? ListsMobileFragment)?.loadLists()
                 }
             }
-            // También quitar de watch later si está ahí
-            val prefs = ctx.getSharedPreferences("wlfmovie_watch_later", Context.MODE_PRIVATE)
-            val movieSet = prefs.getStringSet("movies", emptySet())!!.toMutableSet()
-            val tvSet = prefs.getStringSet("tv_shows", emptySet())!!.toMutableSet()
-            when (removedItem) {
-                is Movie -> {
-                    movieSet.remove(removedItem.id)
-                    prefs.edit().putStringSet("movies", movieSet).apply()
-                }
-                is TvShow -> {
-                    tvSet.remove(removedItem.id)
-                    prefs.edit().putStringSet("tv_shows", tvSet).apply()
-                }
-            }
-            Toast.makeText(ctx, "Quitado de la lista", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -252,19 +276,19 @@ class CardAdapter(
         private val title: TextView = view.findViewById(R.id.tv_list_item_title)
         private val removeBtn: ImageView = view.findViewById(R.id.btn_list_item_remove)
 
-        fun bind(item: Any, onItemClick: (Any) -> Unit, onRemove: (Any) -> Unit) {
+        fun bind(item: Any, onItemClick: (Any) -> Unit, listType: String, onRemove: (Any, String) -> Unit) {
             when (item) {
                 is Movie -> {
                     Glide.with(poster).load(item.poster).into(poster)
                     title.text = item.title
                     itemView.setOnClickListener { onItemClick(item) }
-                    removeBtn.setOnClickListener { onRemove(item) }
+                    removeBtn.setOnClickListener { onRemove(item, listType) }
                 }
                 is TvShow -> {
                     Glide.with(poster).load(item.poster).into(poster)
                     title.text = item.title
                     itemView.setOnClickListener { onItemClick(item) }
-                    removeBtn.setOnClickListener { onRemove(item) }
+                    removeBtn.setOnClickListener { onRemove(item, listType) }
                 }
             }
         }

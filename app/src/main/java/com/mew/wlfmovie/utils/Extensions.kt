@@ -86,6 +86,8 @@ fun Context.hideKeyboard(view: View) {
 
 fun Context.toActivity(): FragmentActivity? = this as? FragmentActivity
 
+fun Context.toFragment(): Fragment? = toActivity()?.getCurrentFragment()
+
 fun FragmentActivity.getCurrentFragment(): Fragment? = when (this) {
     is MainMobileActivity -> {
         val navHostFragment = this.supportFragmentManager

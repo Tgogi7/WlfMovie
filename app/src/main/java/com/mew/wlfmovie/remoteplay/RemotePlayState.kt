@@ -49,6 +49,9 @@ object RemotePlayState {
     var currentPosition: Long = 0L
     var currentDuration: Long = 0L
 
+    // Flag: true cuando el PC manda {type:"ended"} — el video terminó naturalmente
+    var videoEnded: Boolean = false
+
     fun setState(state: ConnectionState) {
         Log.i(TAG, "setState: $_connectionState → $state")
         _connectionState.value = state
@@ -74,6 +77,7 @@ object RemotePlayState {
         currentVideoType = null
         currentPosition = 0L
         currentDuration = 0L
+        videoEnded = false
         _serverUrl.value = null
         _connectionState.value = ConnectionState.IDLE
         _remotePosition.value = 0L

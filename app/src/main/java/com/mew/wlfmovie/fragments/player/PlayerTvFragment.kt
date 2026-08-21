@@ -1043,6 +1043,8 @@ class PlayerTvFragment : Fragment() {
                                     episode.watchedDate = Calendar.getInstance()
                                     episode.watchHistory = null
                                     database.episodeDao().resetProgressionFromEpisode(videoType.id)
+                                    // WLFMOVIE Update 5: Marcar todos los episodios ANTERIORES como vistos.
+                                    database.episodeDao().markPreviousEpisodesWatched(videoType.id)
                                     UserDataCache.removeEpisodeFromContinueWatching(requireContext(), provider, episode.id)
                                 }
 
@@ -1373,6 +1375,8 @@ class PlayerTvFragment : Fragment() {
                                     if (player.hasFinished()) {
                                         database.episodeDao()
                                             .resetProgressionFromEpisode(videoType.id)
+                                        // WLFMOVIE Update 5: Marcar todos los episodios ANTERIORES como vistos.
+                                        database.episodeDao().markPreviousEpisodesWatched(videoType.id)
                                         UserDataCache.removeEpisodeFromContinueWatching(requireContext(), provider, episode.id)
                                         queueNextEpisodeForContinueWatching(provider)
                                     }

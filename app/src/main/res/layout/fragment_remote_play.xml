@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE Update 5: Pantalla "Reproduciendo en navegador" (mobile).
+  Pantalla completa (no diálogo) que se abre al conectar el PC.
+  Al hacer back → stop + volver a detalles.
+-->
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/wlf_bg_dark"
+    android:padding="24dp">
+
+    <!-- Header: icono laptop + título -->
+    <LinearLayout
+        android:id="@+id/ll_remote_header"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_cast_to_pc"
+            android:tint="@color/wlf_fuchsia_neon"
+            tools:ignore="UseAppTint" />
+
+        <TextView
+            android:id="@+id/tv_remote_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="Reproduciendo en navegador"
+            android:textColor="@color/wlf_fuchsia_neon"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Separador -->
+    <View
+        android:id="@+id/v_separator1"
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:layout_marginTop="24dp"
+        android:background="#33FFFFFF"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ll_remote_header" />
+
+    <!-- Contenido central -->
+    <LinearLayout
+        android:id="@+id/ll_remote_content"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:orientation="vertical"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/v_separator1">
+
+        <!-- Título de lo que se está reproduciendo -->
+        <TextView
+            android:id="@+id/tv_remote_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            tools:text="La casa del dragón" />
+
+        <!-- Subtítulo (si es serie) -->
+        <TextView
+            android:id="@+id/tv_remote_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="@color/wlf_text_secondary"
+            android:textSize="16sp"
+            android:visibility="gone"
+            tools:text="S1 E2 · La heredera de los dragones"
+            tools:visibility="visible" />
+    </LinearLayout>
+
+    <!-- Sección de progreso -->
+    <LinearLayout
+        android:id="@+id/ll_remote_progress"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="48dp"
+        android:orientation="vertical"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ll_remote_content">
+
+        <!-- Tiempos current / duration -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tv_remote_current_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:text="00:00:00"
+                android:textColor="@color/wlf_text_primary"
+                android:textSize="14sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_gravity="center"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/tv_remote_duration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:text="00:00:00"
+                android:textColor="@color/wlf_text_primary"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- Barra de progreso (NO interactiva, solo informativa) -->
+        <ProgressBar
+            android:id="@+id/pb_remote_progress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="8dp"
+            android:layout_marginTop="8dp"
+            android:max="1000"
+            android:progress="0"
+            android:progressDrawable="@drawable/wlf_progress_continue_watching" />
+    </LinearLayout>
+
+    <!-- Botón: stop centrado (sin play/pause) -->
+    <LinearLayout
+        android:id="@+id/ll_remote_buttons"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="48dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ll_remote_progress">
+
+        <ImageButton
+            android:id="@+id/btn_remote_stop"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:background="@drawable/wlf_bg_button_circle_selector"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="28dp"
+            android:src="@drawable/ic_remote_stop"
+            android:tint="@color/wlf_text_primary"
+            tools:ignore="UseAppTint" />
+
+        <!-- Botón play/pause oculto (lo dejamos en el layout para no romper el código
+             que lo referencia, pero invisible) -->
+        <ImageButton
+            android:id="@+id/btn_remote_play_pause"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone"
+            android:src="@drawable/wlf_ic_play" />
+    </LinearLayout>
+
+    <!-- Aviso batería -->
+    <TextView
+        android:id="@+id/tv_remote_battery_warning"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="24dp"
+        android:gravity="center"
+        android:text="⚠ Mantén batería sin restricciones activada para evitar cortes"
+        android:textColor="@color/wlf_text_secondary"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

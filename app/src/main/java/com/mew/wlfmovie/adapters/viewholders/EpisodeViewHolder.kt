@@ -312,8 +312,7 @@ class EpisodeViewHolder(
                 )
             }
             setOnLongClickListener {
-                ShowOptionsMobileDialog(context, episode)
-                    .show()
+                com.mew.wlfmovie.utils.ContinueWatchingRemover.showForEpisode(context, episode)
                 true
             }
         }
@@ -413,8 +412,7 @@ class EpisodeViewHolder(
                 )
             }
             setOnLongClickListener {
-                ShowOptionsTvDialog(context, episode)
-                    .show()
+                com.mew.wlfmovie.utils.ContinueWatchingRemover.showForEpisode(context, episode)
                 true
             }
             setOnFocusChangeListener { _, hasFocus ->

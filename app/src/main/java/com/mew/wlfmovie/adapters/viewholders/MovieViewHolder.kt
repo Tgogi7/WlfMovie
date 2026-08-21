@@ -319,7 +319,15 @@ class MovieViewHolder(
                     }
                 }
             }
-            binding.root.setOnLongClickListener { true } // WLFMOVIE: long-click deshabilitado
+            // WLFMOVIE Update 5: Long-click solo para continue watching (quitar de la lista)
+            binding.root.setOnLongClickListener {
+                if (movie.itemType == AppAdapter.Type.MOVIE_CONTINUE_WATCHING_MOBILE_ITEM) {
+                    com.mew.wlfmovie.utils.ContinueWatchingRemover.showForMovie(context, movie)
+                    true
+                } else {
+                    true // long-click deshabilitado para otros items
+                }
+            }
         }
 
         binding.ivMoviePoster.loadMoviePoster(movie) {
@@ -395,7 +403,15 @@ class MovieViewHolder(
             }
 
 
-            binding.root.setOnLongClickListener { true } // WLFMOVIE: long-click deshabilitado
+            // WLFMOVIE Update 5: Long-click solo para continue watching TV (quitar de la lista)
+            binding.root.setOnLongClickListener {
+                if (movie.itemType == AppAdapter.Type.MOVIE_CONTINUE_WATCHING_TV_ITEM) {
+                    com.mew.wlfmovie.utils.ContinueWatchingRemover.showForMovie(context, movie)
+                    true
+                } else {
+                    true // long-click deshabilitado para otros items
+                }
+            }
             setOnFocusChangeListener { _, hasFocus ->
                 val animation = when {
                     hasFocus -> AnimationUtils.loadAnimation(context, R.anim.zoom_in)
@@ -456,7 +472,15 @@ class MovieViewHolder(
                     }
                 }
             }
-            binding.root.setOnLongClickListener { true } // WLFMOVIE: long-click deshabilitado
+            // WLFMOVIE Update 5: Long-click solo para continue watching (quitar de la lista)
+            binding.root.setOnLongClickListener {
+                if (movie.itemType == AppAdapter.Type.MOVIE_CONTINUE_WATCHING_MOBILE_ITEM) {
+                    com.mew.wlfmovie.utils.ContinueWatchingRemover.showForMovie(context, movie)
+                    true
+                } else {
+                    true // long-click deshabilitado para otros items
+                }
+            }
         }
 
         binding.ivMoviePoster.loadMoviePoster(movie) {

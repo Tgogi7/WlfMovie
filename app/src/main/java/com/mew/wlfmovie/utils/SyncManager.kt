@@ -3,6 +3,7 @@ package com.mew.wlfmovie.utils
 import android.content.Context
 import android.util.Log
 import com.mew.wlfmovie.database.AppDatabase
+import com.mew.wlfmovie.ui.UserDataNotifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.first
@@ -87,11 +88,45 @@ object SyncManager {
         favorites.put("tvShows", tvArr)
         json.put("favorites", favorites)
 
-        // WATCH LATER
+        // WATCH LATER — WLFMOVIE V5.1: Subir registros completos (no solo IDs)
+        // para que el dispositivo que descarga tenga los datos de la peli/serie
+        // aunque nunca la haya visitado.
         val prefs = context.getSharedPreferences("wlfmovie_watch_later", Context.MODE_PRIVATE)
+        val watchLaterMovieIds = prefs.getStringSet("movies", emptySet())!!
+        val watchLaterTvIds = prefs.getStringSet("tv_shows", emptySet())!!
+
         val watchLater = JSONObject()
-        watchLater.put("movies", JSONArray(prefs.getStringSet("movies", emptySet())!!))
-        watchLater.put("tvShows", JSONArray(prefs.getStringSet("tv_shows", emptySet())!!))
+        val wlMoviesArr = JSONArray()
+        for (id in watchLaterMovieIds) {
+            val movie = db.movieDao().getById(id)
+            val m = JSONObject()
+            m.put("id", id)
+            m.put("title", movie?.title ?: "")
+            m.put("poster", movie?.poster ?: "")
+            m.put("banner", movie?.banner ?: "")
+            m.put("released", movie?.released?.let { it.format("yyyy-MM-dd") } ?: "")
+            m.put("rating", movie?.rating ?: 0)
+            m.put("overview", movie?.overview ?: "")
+            m.put("imdbId", movie?.imdbId ?: "")
+            wlMoviesArr.put(m)
+        }
+        watchLater.put("movies", wlMoviesArr)
+
+        val wlTvArr = JSONArray()
+        for (id in watchLaterTvIds) {
+            val tv = db.tvShowDao().getById(id)
+            val t = JSONObject()
+            t.put("id", id)
+            t.put("title", tv?.title ?: "")
+            t.put("poster", tv?.poster ?: "")
+            t.put("banner", tv?.banner ?: "")
+            t.put("released", tv?.released?.let { it.format("yyyy-MM-dd") } ?: "")
+            t.put("rating", tv?.rating ?: 0)
+            t.put("overview", tv?.overview ?: "")
+            t.put("imdbId", tv?.imdbId ?: "")
+            wlTvArr.put(t)
+        }
+        watchLater.put("tvShows", wlTvArr)
         json.put("watchLater", watchLater)
 
         // CONTINUE WATCHING - movies (con imdbId)
@@ -230,13 +265,66 @@ object SyncManager {
                 }
             }
 
-            // Watch later
+            // Watch later — WLFMOVIE V5.1: Recibir registros completos (no solo IDs)
+            // e insertarlos en la DB local si no existen, para que mapNotNull
+            // los encuentre al mostrar la lista "Pendientes por ver".
             json.optJSONObject("watchLater")?.let { wl ->
                 val prefs = context.getSharedPreferences("wlfmovie_watch_later", Context.MODE_PRIVATE)
                 val movieSet = if (clearFirst) mutableSetOf() else prefs.getStringSet("movies", emptySet())!!.toMutableSet()
                 val tvSet = if (clearFirst) mutableSetOf() else prefs.getStringSet("tv_shows", emptySet())!!.toMutableSet()
-                wl.optJSONArray("movies")?.let { arr -> for (i in 0 until arr.length()) movieSet.add(arr.getString(i)) }
-                wl.optJSONArray("tvShows")?.let { arr -> for (i in 0 until arr.length()) tvSet.add(arr.getString(i)) }
+
+                // Películas
+                wl.optJSONArray("movies")?.let { arr ->
+                    for (i in 0 until arr.length()) {
+                        val m = arr.getJSONObject(i)
+                        val id = m.getString("id")
+                        movieSet.add(id)
+                        // Insertar registro completo en DB si no existe
+                        val existing = db.movieDao().getById(id)
+                        if (existing == null) {
+                            val movie = com.mew.wlfmovie.models.Movie(
+                                id = id,
+                                title = m.optString("title", ""),
+                                overview = m.optString("overview", ""),
+                                released = m.optString("released", ""),
+                                rating = m.optDouble("rating", 0.0),
+                                poster = m.optString("poster", ""),
+                                banner = m.optString("banner", ""))
+                            movie.imdbId = m.optString("imdbId", "").takeIf { it.isNotEmpty() }
+                            db.movieDao().insert(movie)
+                        } else if (existing.imdbId.isNullOrBlank()) {
+                            existing.imdbId = m.optString("imdbId", "").takeIf { it.isNotEmpty() }
+                            db.movieDao().insert(existing)
+                        }
+                    }
+                }
+
+                // Series
+                wl.optJSONArray("tvShows")?.let { arr ->
+                    for (i in 0 until arr.length()) {
+                        val t = arr.getJSONObject(i)
+                        val id = t.getString("id")
+                        tvSet.add(id)
+                        // Insertar registro completo en DB si no existe
+                        val existing = db.tvShowDao().getById(id)
+                        if (existing == null) {
+                            val tvShow = com.mew.wlfmovie.models.TvShow(
+                                id = id,
+                                title = t.optString("title", ""),
+                                overview = t.optString("overview", ""),
+                                released = t.optString("released", ""),
+                                rating = t.optDouble("rating", 0.0),
+                                poster = t.optString("poster", ""),
+                                banner = t.optString("banner", ""))
+                            tvShow.imdbId = t.optString("imdbId", "").takeIf { it.isNotEmpty() }
+                            db.tvShowDao().insert(tvShow)
+                        } else if (existing.imdbId.isNullOrBlank()) {
+                            existing.imdbId = t.optString("imdbId", "").takeIf { it.isNotEmpty() }
+                            db.tvShowDao().insert(existing)
+                        }
+                    }
+                }
+
                 prefs.edit().putStringSet("movies", movieSet).putStringSet("tv_shows", tvSet).apply()
             }
 
@@ -263,9 +351,15 @@ object SyncManager {
 
             // Continue watching episodes (con imdbId del tvShow y season completos)
             json.optJSONObject("continueWatching")?.optJSONArray("episodes")?.let { arr ->
+                // Set de IDs de episodios que están en continue watching en la nube
+                val remoteContinueWatchingIds = mutableSetOf<String>()
+
                 for (i in 0 until arr.length()) {
                     val e = arr.getJSONObject(i)
-                    val existing = db.episodeDao().getById(e.getString("id"))
+                    val episodeId = e.getString("id")
+                    remoteContinueWatchingIds.add(episodeId)
+
+                    val existing = db.episodeDao().getById(episodeId)
 
                     // WLFMOVIE: Primero asegurar que el TvShow existe en la DB con TODOS los datos
                     val tvShowId = e.optString("tvShowId", null)
@@ -298,7 +392,7 @@ object SyncManager {
                     if (existing == null) {
                         // Crear episodio nuevo
                         val episode = com.mew.wlfmovie.models.Episode(
-                            id = e.getString("id"),
+                            id = episodeId,
                             number = e.optInt("number", 1),
                             title = e.optString("title", null),
                             poster = e.optString("poster", null),
@@ -317,11 +411,38 @@ object SyncManager {
                         episode.season = com.mew.wlfmovie.models.Season(seasonId, seasonNumber, seasonTitle)
                         db.episodeDao().insert(episode)
                     } else if (existing.watchHistory == null) {
-                        existing.watchHistory = com.mew.wlfmovie.models.WatchItem.WatchHistory(
-                            lastEngagementTimeUtcMillis = System.currentTimeMillis(),
-                            lastPlaybackPositionMillis = e.optLong("lastPosition", 0),
-                            durationMillis = e.optLong("duration", 0))
-                        db.episodeDao().insert(existing)
+                        // WLFMOVIE FIX: Si el episodio existe localmente pero con watchHistory=null,
+                        // significa que ya fue terminado/visto. NO debemos revivirlo con watchHistory
+                        // porque eso haría que vuelva a aparecer en continue watching.
+                        // Solo actualizamos si NO está marcado como visto.
+                        if (!existing.isWatched) {
+                            existing.watchHistory = com.mew.wlfmovie.models.WatchItem.WatchHistory(
+                                lastEngagementTimeUtcMillis = System.currentTimeMillis(),
+                                lastPlaybackPositionMillis = e.optLong("lastPosition", 0),
+                                durationMillis = e.optLong("duration", 0))
+                            db.episodeDao().insert(existing)
+                        }
+                    }
+                }
+
+                // WLFMOVIE FIX: Sincronizar el UserDataCache local con lo que vino de la nube.
+                // Si un episodio estaba en el cache local pero NO en la nube, sacarlo del cache.
+                // Esto arregla el bug donde un ep terminado en otro dispositivo seguía
+                // apareciendo en continue watching del celular.
+                val provider = UserPreferences.currentProvider
+                if (provider != null) {
+                    val userData = UserDataCache.read(context, provider)
+                    if (userData != null) {
+                        val filteredEpisodes = userData.continueWatchingEpisodes.filter { cached ->
+                            cached.id in remoteContinueWatchingIds
+                        }
+                        if (filteredEpisodes.size != userData.continueWatchingEpisodes.size) {
+                            UserDataCache.write(context, provider, userData.copy(
+                                continueWatchingEpisodes = filteredEpisodes
+                            ))
+                            UserDataNotifier.notifyChanged()
+                            Log.i(TAG, "applyRemoteData: se sacaron ${userData.continueWatchingEpisodes.size - filteredEpisodes.size} episodios del cache local que ya no están en la nube")
+                        }
                     }
                 }
             }
@@ -376,8 +497,11 @@ object SyncManager {
             val remoteLastSync = SupabaseClient.getLastSync(session.userId) ?: return@withContext
             val localLastSync = AccountManager.getLastSync(context)
             if (localLastSync == null || remoteLastSync > localLastSync) {
-                Log.i(TAG, "Auto-download: servidor más reciente")
-                download(context, clearFirst = false)
+                Log.i(TAG, "Auto-download: servidor más reciente — clearFirst=true")
+                // WLFMOVIE Update 5: Limpiar local primero para que el sync se aplique desde cero.
+                // Esto arregla el bug donde episodios que ya no están en la nube seguían
+                // apareciendo en continue watching del dispositivo local.
+                download(context, clearFirst = true)
             } else {
                 Log.i(TAG, "Auto-download: ya actualizado")
             }

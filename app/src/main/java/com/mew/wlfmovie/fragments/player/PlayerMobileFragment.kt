@@ -1,5 +1,6 @@
 package com.mew.wlfmovie.fragments.player
 
+import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
@@ -272,9 +273,18 @@ class PlayerMobileFragment : Fragment() {
         isIgnoringPip = false
         if (::player.isInitialized) {
             binding.pvPlayer.useController = true
-            // Resume playback after returning from bypass or any pause
-            if (!player.isPlaying) {
+            // WLFMOVIE Update 5: NO reanudar si el cast al PC está activo.
+            // El player debe quedarse pausado mientras se reproduce en el navegador.
+            val castActive = RemotePlayController.isRunning() &&
+                RemotePlayState.connectionState.value != RemotePlayState.ConnectionState.IDLE
+            if (!castActive && !player.isPlaying && !RemotePlayState.connectionState.value.let {
+                    it == RemotePlayState.ConnectionState.WAITING ||
+                    it == RemotePlayState.ConnectionState.CONNECTED ||
+                    it == RemotePlayState.ConnectionState.PLAYING
+                }) {
                 player.play()
+            } else if (castActive) {
+                Log.i("WlfMovie-RemotePlay", "onResume: cast activo, NO reanudando player local")
             }
         }
         
@@ -587,16 +597,25 @@ class PlayerMobileFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         nextEpisodePrefetchJob?.cancel()
-        // WLFMOVIE Update 5: Detener cast al PC si está activo
+        // WLFMOVIE Update 5: Solo detener el cast si está en estado WAITING (diálogo abierto).
+        // Si está CONNECTED/PLAYING, el RemotePlayFragment se va a hacer cargo —
+        // detenerlo aquí causaría 503 en el PC y "no se pudo levantar el server"
+        // en el siguiente intento (puerto ocupado).
         try {
-            if (RemotePlayController.isRunning()) {
-                Log.i("WlfMovie-RemotePlay", "onDestroyView: deteniendo cast activo")
+            val state = RemotePlayState.connectionState.value
+            if (state == RemotePlayState.ConnectionState.WAITING ||
+                state == RemotePlayState.ConnectionState.STARTING) {
+                Log.i("WlfMovie-RemotePlay", "onDestroyView: deteniendo cast (estaba esperando)")
                 remotePlayDialog?.dismiss()
                 remotePlayDialog = null
+                remotePlayStateJob?.cancel()
                 RemotePlayController.stop(requireContext())
+            } else {
+                Log.i("WlfMovie-RemotePlay", "onDestroyView: cast activo en estado $state, NO se detiene (RemotePlayFragment lo maneja)")
+                remotePlayStateJob?.cancel()
             }
         } catch (e: Exception) {
-            Log.e("WlfMovie-RemotePlay", "onDestroyView: error deteniendo cast", e)
+            Log.e("WlfMovie-RemotePlay", "onDestroyView: error", e)
         }
         // WLFMOVIE: Hacer esto defensivo. Si la activity ya no está attached,
         // requireActivity() lanza IllegalStateException que crashea la app.
@@ -923,6 +942,8 @@ class PlayerMobileFragment : Fragment() {
                     episode?.let {
                         if (player.hasFinished()) {
                             database.episodeDao().resetProgressionFromEpisode(videoType.id)
+                            // WLFMOVIE Update 5: Marcar todos los episodios ANTERIORES como vistos.
+                            database.episodeDao().markPreviousEpisodesWatched(videoType.id)
                             UserDataCache.removeEpisodeFromContinueWatching(requireContext(), provider, it.id)
                         }
                         database.episodeDao().update(it)
@@ -1150,6 +1171,8 @@ class PlayerMobileFragment : Fragment() {
                                     episode?.let {
                                         if (player.hasFinished()) {
                                             database.episodeDao().resetProgressionFromEpisode(videoType.id)
+                                            // WLFMOVIE Update 5: Marcar todos los episodios ANTERIORES como vistos.
+                                            database.episodeDao().markPreviousEpisodesWatched(videoType.id)
                                             UserDataCache.removeEpisodeFromContinueWatching(requireContext(), provider, it.id)
                                             queueNextEpisodeForContinueWatching(provider)
                                         }
@@ -1487,7 +1510,6 @@ class PlayerMobileFragment : Fragment() {
 
     private var remotePlayDialog: AlertDialog? = null
     private var remotePlayStateJob: kotlinx.coroutines.Job? = null
-    private var remotePlayPositionJob: kotlinx.coroutines.Job? = null
 
     private fun startRemotePlay() {
         val video = currentVideo
@@ -1502,10 +1524,12 @@ class PlayerMobileFragment : Fragment() {
         val duration = player.duration.takeIf { it > 0 } ?: 0L
         val videoType = args.videoType
 
-        // Pausar el player local mientras se reproduce en PC
-        if (player.isPlaying) {
-            player.pause()
-        }
+        // Pausar el player local mientras se reproduce en PC.
+        // Importante: setear playWhenReady=false para que NO se reanude solo
+        // (ej: cuando el Fragment pierde/gana foco).
+        player.pause()
+        player.playWhenReady = false
+        Log.i("WlfMovie-RemotePlay", "startRemotePlay: player local pausado en pos=$position")
 
         // Levantar el server en background
         lifecycleScope.launch(Dispatchers.IO) {
@@ -1520,9 +1544,8 @@ class PlayerMobileFragment : Fragment() {
             withContext(Dispatchers.Main) {
                 if (_binding == null) return@withContext
                 if (url != null) {
-                    showRemotePlayWaitingDialog(url)
+                    showRemoteWaitingDialog(url)
                     observeRemotePlayState()
-                    startRemotePositionSync()
                 } else {
                     Toast.makeText(requireContext(), "No se pudo levantar el server", Toast.LENGTH_SHORT).show()
                 }
@@ -1531,23 +1554,19 @@ class PlayerMobileFragment : Fragment() {
     }
 
     private fun stopRemotePlay() {
-        // Antes de detener el cast, guardar la última posición del PC
-        saveRemotePositionToDb()
         remotePlayStateJob?.cancel()
-        remotePlayPositionJob?.cancel()
         lifecycleScope.launch(Dispatchers.IO) {
             RemotePlayController.stop(requireContext())
         }
         remotePlayDialog?.dismiss()
         remotePlayDialog = null
-
-        // Volver a la pantalla de detalles (no al player, para que no sobrescriba la posición)
-        navigateToDetailsAfterStop()
     }
 
     /**
-     * Observa el StateFlow del RemotePlayState y actualiza el diálogo
-     * cuando el PC se conecta (cambia a overlay "Reproduciendo en navegador").
+     * Observa el StateFlow del RemotePlayState.
+     * - Cuando el PC conecta (CONNECTED/PLAYING) → navega a RemotePlayFragment
+     * - Cuando el PC se desconecta (WAITING) → vuelve a mostrar el diálogo de espera
+     * - Cuando se detiene (IDLE/STOPPING) → cierra el diálogo
      */
     private fun observeRemotePlayState() {
         remotePlayStateJob?.cancel()
@@ -1558,19 +1577,20 @@ class PlayerMobileFragment : Fragment() {
                 when (state) {
                     RemotePlayState.ConnectionState.CONNECTED,
                     RemotePlayState.ConnectionState.PLAYING -> {
-                        // Cambiar diálogo a "Reproduciendo en navegador"
-                        updateRemotePlayDialogToPlaying()
+                        // El PC conectó — cerrar diálogo y navegar a RemotePlayFragment
+                        remotePlayDialog?.dismiss()
+                        remotePlayDialog = null
+                        navigateToRemotePlayFragment()
                     }
                     RemotePlayState.ConnectionState.WAITING -> {
-                        // Volver al diálogo de esperando
+                        // Volver a mostrar el diálogo de espera
                         val url = RemotePlayState.serverUrl.value
                         if (url != null && remotePlayDialog?.isShowing != true) {
-                            showRemotePlayWaitingDialog(url)
+                            showRemoteWaitingDialog(url)
                         }
                     }
                     RemotePlayState.ConnectionState.IDLE,
                     RemotePlayState.ConnectionState.STOPPING -> {
-                        // El cast se detuvo — cerrar diálogo y volver a detalles
                         remotePlayDialog?.dismiss()
                         remotePlayDialog = null
                     }
@@ -1581,166 +1601,31 @@ class PlayerMobileFragment : Fragment() {
     }
 
     /**
-     * Cada 10s, guarda la posición reportada por el PC en la DB local + nube.
-     * Usa la misma lógica que el player local (UserDataCache.syncEpisodeToCache).
+     * Navega al RemotePlayFragment (pantalla completa, no diálogo).
+     * NO limpia el player del backstack aquí — el RemotePlayFragment se encarga
+     * de limpiarlo cuando hace back (para ir a detalles).
      */
-    private fun startRemotePositionSync() {
-        remotePlayPositionJob?.cancel()
-        var lastSavedPosition = -1L
-        remotePlayPositionJob = lifecycleScope.launch(Dispatchers.IO) {
-            while (isActive) {
-                delay(10_000) // cada 10s
-                val position = RemotePlayState.remotePosition.value
-                val duration = RemotePlayState.remoteDuration.value
-                val isPlaying = RemotePlayState.remoteIsPlaying.value
-
-                if (position <= 0 || duration <= 0) continue
-                if (position == lastSavedPosition) continue
-
-                lastSavedPosition = position
-                saveRemotePlayPosition(position, duration, isPlaying)
-            }
-        }
-    }
-
-    /**
-     * Guarda la posición actual del PC en la DB local + nube.
-     */
-    private suspend fun saveRemotePlayPosition(position: Long, duration: Long, isPlaying: Boolean) {
+    private fun navigateToRemotePlayFragment() {
         try {
-            val videoType = RemotePlayState.currentVideoType ?: return
-            val provider = com.mew.wlfmovie.utils.UserPreferences.currentProvider ?: return
-
-            when (videoType) {
-                is Video.Type.Movie -> {
-                    val movie = database.movieDao().getById(videoType.id) ?: return
-                    if (position >= duration * 0.95 && !isPlaying) {
-                        // Marcamos como visto
-                        movie.isWatched = true
-                        movie.watchedDate = java.util.Calendar.getInstance()
-                        movie.watchHistory = null
-                        com.mew.wlfmovie.utils.UserDataCache.removeMovieFromContinueWatching(
-                            requireContext(), provider, movie.id
-                        )
-                    } else {
-                        movie.isWatched = false
-                        movie.watchedDate = null
-                        movie.watchHistory = com.mew.wlfmovie.models.WatchItem.WatchHistory(
-                            lastEngagementTimeUtcMillis = System.currentTimeMillis(),
-                            lastPlaybackPositionMillis = position,
-                            durationMillis = duration,
-                        )
-                    }
-                    database.movieDao().update(movie)
-                    if (!movie.isWatched) {
-                        com.mew.wlfmovie.utils.UserDataCache.syncMovieToCache(
-                            requireContext(), provider, movie
-                        )
-                    }
-                }
-                is Video.Type.Episode -> {
-                    val episode = database.episodeDao().getById(videoType.id) ?: return
-                    if (position >= duration * 0.95 && !isPlaying) {
-                        // Marcamos como visto
-                        episode.isWatched = true
-                        episode.watchedDate = java.util.Calendar.getInstance()
-                        episode.watchHistory = null
-                        database.episodeDao().resetProgressionFromEpisode(videoType.id)
-                        com.mew.wlfmovie.utils.UserDataCache.removeEpisodeFromContinueWatching(
-                            requireContext(), provider, episode.id
-                        )
-                    } else {
-                        episode.isWatched = false
-                        episode.watchedDate = null
-                        episode.watchHistory = com.mew.wlfmovie.models.WatchItem.WatchHistory(
-                            lastEngagementTimeUtcMillis = System.currentTimeMillis(),
-                            lastPlaybackPositionMillis = position,
-                            durationMillis = duration,
-                        )
-                    }
-                    database.episodeDao().update(episode)
-                    if (!episode.isWatched) {
-                        com.mew.wlfmovie.utils.UserDataCache.syncEpisodeToCache(
-                            requireContext(), provider, episode
-                        )
-                    }
-                }
-            }
-            Log.i("WlfMovie-RemotePlay", "Posición guardada: pos=$position, dur=$duration, playing=$isPlaying")
+            findNavController().navigate(com.mew.wlfmovie.R.id.remote_play)
+            // Cancelar el observer del estado — el RemotePlayFragment tiene su propio observer
+            remotePlayStateJob?.cancel()
         } catch (e: Exception) {
-            Log.e("WlfMovie-RemotePlay", "Error guardando posición", e)
+            Log.e("WlfMovie-RemotePlay", "navigateToRemotePlayFragment: error", e)
         }
     }
 
     /**
-     * Guarda la última posición conocida antes de detener el cast.
+     * Overlay "Esperando conexión" — diálogo simple sobre el player.
+     * Si el user cancela → detiene el cast y vuelve al player normal.
      */
-    private fun saveRemotePositionToDb() {
-        val position = RemotePlayState.remotePosition.value
-        val duration = RemotePlayState.remoteDuration.value
-        val isPlaying = RemotePlayState.remoteIsPlaying.value
-        if (position > 0 && duration > 0) {
-            lifecycleScope.launch(Dispatchers.IO) {
-                saveRemotePlayPosition(position, duration, isPlaying)
-            }
-        }
-    }
-
-    /**
-     * Navega de vuelta a la pantalla de detalles (Movie o TvShow) después de stop.
-     * NO vuelve al player, para evitar que el player local sobrescriba la posición.
-     */
-    private fun navigateToDetailsAfterStop() {
-        try {
-            val videoType = args.videoType
-            val navController = findNavController()
-            when (videoType) {
-                is Video.Type.Movie -> {
-                    val bundle = android.os.Bundle().apply {
-                        putString("id", videoType.id)
-                    }
-                    navController.navigate(com.mew.wlfmovie.R.id.movie, bundle)
-                }
-                is Video.Type.Episode -> {
-                    val bundle = android.os.Bundle().apply {
-                        putString("id", videoType.tvShow.id)
-                        putString("poster", videoType.tvShow.poster)
-                        putString("banner", videoType.tvShow.banner)
-                    }
-                    navController.navigate(com.mew.wlfmovie.R.id.tv_show, bundle)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("WlfMovie-RemotePlay", "navigateToDetailsAfterStop: error", e)
-            // Si falla la navegación, al menos hacer navigateUp
-            try { findNavController().navigateUp() } catch (_: Exception) {}
-        }
-    }
-
-    private fun showRemotePlayWaitingDialog(url: String) {
-        // URL simple: solo "http://ip:8080"
-        val state = RemotePlayState.connectionState.value
-        val title = when (state) {
-            RemotePlayState.ConnectionState.CONNECTED,
-            RemotePlayState.ConnectionState.PLAYING -> "🟢 Reproduciendo en navegador"
-            else -> "💻 Esperando conexión"
-        }
-
+    private fun showRemoteWaitingDialog(url: String) {
         val message = buildString {
             append("En tu PC, abre esta URL en el navegador:\n\n")
             append(url)
             append("\n\n")
-            if (state == RemotePlayState.ConnectionState.CONNECTED ||
-                state == RemotePlayState.ConnectionState.PLAYING) {
-                val pos = RemotePlayState.remotePosition.value
-                val dur = RemotePlayState.remoteDuration.value
-                if (dur > 0) {
-                    append("Posición: ${formatMillis(pos)} / ${formatMillis(dur)}\n\n")
-                }
-                append("Tocá ▶ en el celular para pausar/reproducir el PC.\n\n")
-            }
             append("⚠ Activá batería sin restricciones para evitar cortes inesperados.\n")
-            append("Cerrar este diálogo o tocar Detener → vuelve a detalles.")
+            append("Cerrar este diálogo cancela el cast.")
         }
 
         val textView = TextView(requireContext()).apply {
@@ -1751,40 +1636,20 @@ class PlayerMobileFragment : Fragment() {
             setTextIsSelectable(true)
         }
 
-        val positiveBtn = if (state == RemotePlayState.ConnectionState.PLAYING ||
-            state == RemotePlayState.ConnectionState.CONNECTED) {
-            "Play/Pause"
-        } else {
-            "Copiar URL"
-        }
-
         remotePlayDialog?.dismiss()
         remotePlayDialog = AlertDialog.Builder(requireContext())
-            .setTitle(title)
+            .setTitle("💻 Esperando conexión")
             .setView(textView)
             .setCancelable(false)
-            .setPositiveButton(positiveBtn) { _, _ ->
-                when (state) {
-                    RemotePlayState.ConnectionState.PLAYING -> {
-                        // Pause
-                        RemotePlayController.sendPause()
-                    }
-                    RemotePlayState.ConnectionState.CONNECTED -> {
-                        // Play (si estaba pausado)
-                        RemotePlayController.sendPlay()
-                    }
-                    else -> {
-                        // Copiar URL
-                        val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        clipboard.setPrimaryClip(
-                            android.content.ClipData.newPlainText("WlfMovie Remote", url)
-                        )
-                        Toast.makeText(requireContext(), "URL copiada", Toast.LENGTH_SHORT).show()
-                        showRemotePlayWaitingDialog(url)
-                    }
-                }
+            .setPositiveButton("Copiar URL") { _, _ ->
+                val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(
+                    android.content.ClipData.newPlainText("WlfMovie Remote", url)
+                )
+                Toast.makeText(requireContext(), "URL copiada", Toast.LENGTH_SHORT).show()
+                showRemoteWaitingDialog(url)
             }
-            .setNegativeButton("Detener") { _, _ ->
+            .setNegativeButton("Cancelar") { _, _ ->
                 stopRemotePlay()
             }
             .show()
@@ -1792,23 +1657,6 @@ class PlayerMobileFragment : Fragment() {
         remotePlayDialog?.window?.setBackgroundDrawable(ColorDrawable(Color.parseColor("#1a0a1f")))
     }
 
-    private fun updateRemotePlayDialogToPlaying() {
-        val url = RemotePlayState.serverUrl.value ?: return
-        // Solo refrescar si el diálogo está mostrando el estado "esperando"
-        showRemotePlayWaitingDialog(url)
-    }
-
-    private fun formatMillis(ms: Long): String {
-        val totalSec = ms / 1000
-        val h = totalSec / 3600
-        val m = (totalSec % 3600) / 60
-        val s = totalSec % 60
-        return if (h > 0) {
-            String.format(java.util.Locale.US, "%d:%02d:%02d", h, m, s)
-        } else {
-            String.format(java.util.Locale.US, "%d:%02d", m, s)
-        }
-    }
 
     private fun showSkipIntroButton(show: Boolean) {
         // WLFMOVIE: btnSkipIntro eliminado por completo (omitir intro).
