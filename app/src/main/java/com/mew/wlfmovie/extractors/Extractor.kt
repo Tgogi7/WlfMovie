@@ -117,7 +117,11 @@ abstract class Extractor {
             ZillaExtractor(),
             PDrainExtractor(),
             MaxstreamExtractor(),
-            VidxGoExtractor()
+            VidxGoExtractor(),
+            // WLFMOVIE V6: Extractores para Gnula (separados de los originales)
+            VoeExtractorGnula(),
+            VidaraExtractorGnula(),
+            VidsonicExtractorGnula()
         )
 
         suspend fun extract(link: String, server: Video.Server? = null): Video {

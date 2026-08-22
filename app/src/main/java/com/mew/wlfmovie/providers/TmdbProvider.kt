@@ -930,6 +930,8 @@ class TmdbProvider(override val language: String) : Provider {
                         CableVisionHDProvider,
                         CineCityProvider,
                         DoramasflixProvider,
+                        // WLFMOVIE V6: CineHax
+                        CineHaxProvider,
                     )
                     val deferred = providers.map { provider ->
                         async {
@@ -1175,13 +1177,15 @@ class TmdbProvider(override val language: String) : Provider {
             PelisplustoProvider, PelisflixHdProvider, SeriesFlixProvider,
             FlixLatamProvider, SoloLatinoProvider, CableVisionHDProvider,
             CineCityProvider, DoramasflixProvider,
+            // WLFMOVIE V6: CineHax — provider español con servers UNLIMPLAY
+            CineHaxProvider,
         )
 
         try {
             // Implementación con coroutineScope + Channel manual
             coroutineScope {
-            // Channel para recibir los resultados a medida que cada provider termina
-            val channel = Channel<List<Video.Server>>(11)
+            // Channel para recibir los resultados a medida que cada provider termina (12 providers + Gnula = 13)
+            val channel = Channel<List<Video.Server>>(13)
 
             // Lanzar todas las búsquedas en paralelo
             val jobs = providers.map { provider ->
@@ -1226,9 +1230,31 @@ class TmdbProvider(override val language: String) : Provider {
                 }
             }
 
+            // WLFMOVIE V6: Lanzar GnulaProvider en paralelo también
+            val gnulaJob = launch {
+                val timeoutMs = if (videoType is Video.Type.Episode) 25_000L else 15_000L
+                val result = withTimeoutOrNull(timeoutMs) {
+                    try {
+                        GnulaProvider.searchServers(
+                            title = targetTitle,
+                            isMovie = videoType is Video.Type.Movie,
+                            seasonNum = targetSeason,
+                            episodeNum = targetEpisode,
+                        )
+                    } catch (e: Exception) {
+                        Log.e("WlfMovie", "[GNULA ERROR] -> ${e.message}")
+                        emptyList()
+                    }
+                } ?: emptyList()
+
+                channel.send(result)
+            }
+
             // Recolectar del canal y emitir a medida que llegan
+            // 12 providers + 1 Gnula = 13 resultados esperados
+            val totalExpected = providers.size + 1
             var received = 0
-            while (received < providers.size) {
+            while (received < totalExpected) {
                 val batch = channel.receive()
                 received++
 
@@ -1254,6 +1280,7 @@ class TmdbProvider(override val language: String) : Provider {
 
             // Esperar a que todos los jobs terminen
             jobs.forEach { it.join() }
+            gnulaJob.join()
             }
         } catch (e: Exception) {
             Log.e("WlfMovie", "[STREAM ERROR] -> ${e.message}")

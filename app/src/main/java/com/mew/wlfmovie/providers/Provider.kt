@@ -77,6 +77,8 @@ interface Provider {
             CableVisionHDProvider to ProviderSupport(movies = false, tvShows = true),
             CineCityProvider      to ProviderSupport(movies = false, tvShows = true),
             DoramasflixProvider   to ProviderSupport(movies = true, tvShows = true),
+            // WLFMOVIE V6: CineHax — provider español con servers UNLIMPLAY (MP4 directo)
+            CineHaxProvider       to ProviderSupport(movies = true, tvShows = true),
         )
 
         // Helper functions to check support

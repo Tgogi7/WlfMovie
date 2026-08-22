@@ -41,6 +41,9 @@ android {
         buildConfigField "String", "SUPABASE_ANON_KEY", "\"${properties.getProperty("SUPABASE_ANON_KEY")}\""
     }
 
+    // WLFMOVIE V6: Variable para renombrar el APK con la versión
+    def appVersion = defaultConfig.versionName
+
     sourceSets {
         main {
             def appLayout = properties.getProperty("APP_LAYOUT")
@@ -67,10 +70,14 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             applicationIdSuffix '.debug'
+            // WLFMOVIE V6: Renombrar APK automáticamente con la versión
+            setProperty("archivesBaseName", "WlfMovieV${appVersion}-debug")
         }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // WLFMOVIE V6: Renombrar APK automáticamente con la versión
+            setProperty("archivesBaseName", "WlfMovieV${appVersion}")
         }
     }
 
