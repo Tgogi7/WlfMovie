@@ -399,12 +399,9 @@ class PlayerMobileFragment : Fragment() {
                     }
 
                     is PlayerViewModel.State.FailedLoadingServers -> {
-                        Toast.makeText(
-                            requireContext(),
-                            state.error.message ?: "",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        findNavController().navigateUp()
+                        // WLFMOVIE V6.1: NO hacer navigateUp() — eso destruye el player
+                        // y sobrescribe el progreso con 0. En su lugar, mostrar overlay de error.
+                        showErrorServersOverlay()
                     }
 
                     is PlayerViewModel.State.LoadingVideo -> {
@@ -421,6 +418,8 @@ class PlayerMobileFragment : Fragment() {
                     }
 
                     is PlayerViewModel.State.SuccessLoadingVideo -> {
+                        // WLFMOVIE V6.1: Marcar que el video cargó correctamente
+                        videoLoadedSuccessfully = true
                         PlayerSettingsView.Settings.ExtraBuffering.init(state.video.extraBuffering)
                         PlayerSettingsView.Settings.SoftwareDecoder.init(false)
                         displayVideo(state.video, state.server)
@@ -1120,6 +1119,10 @@ class PlayerMobileFragment : Fragment() {
                 super.onIsPlayingChanged(isPlaying)
                 binding.pvPlayer.keepScreenOn = isPlaying || UserPreferences.keepScreenOnWhenPaused
 
+                // WLFMOVIE V6.1: No guardar progreso si el video nunca cargó correctamente.
+                // Esto evita que se sobrescriba el progreso real con 0 cuando fallan los servers.
+                if (!videoLoadedSuccessfully) return
+
                 if (isPlaying) {
                     startProgressHandler()
                 } else {
@@ -1365,6 +1368,11 @@ class PlayerMobileFragment : Fragment() {
 
     // WLFMOVIE V4: Guarda el progreso de reproducción en la DB local + auto-upload a la nube
     private fun saveWatchProgress() {
+        // WLFMOVIE V6.1: No guardar si el video nunca cargó correctamente.
+        if (!videoLoadedSuccessfully) {
+            Log.i("WlfMovie-Player", "saveWatchProgress: skip (videoLoadedSuccessfully=false)")
+            return
+        }
         try {
             val videoType = args.videoType
             val position = player.currentPosition
@@ -1501,6 +1509,105 @@ class PlayerMobileFragment : Fragment() {
             val fadeOut = android.view.animation.AnimationUtils.loadAnimation(requireContext(), R.anim.fade_out)
             binding.layoutNextEpisodeOverlay.startAnimation(fadeOut)
             binding.layoutNextEpisodeOverlay.isGone = true
+        }
+    }
+
+    // =================================================================
+    // WLFMOVIE V6.1: Overlay de error cuando no hay servers disponibles.
+    // No destruye el player ni sobrescribe el progreso.
+    // =================================================================
+
+    private var videoLoadedSuccessfully = false
+
+    private fun showErrorServersOverlay() {
+        if (_binding == null) return
+        Log.i(TAG, "showErrorServersOverlay: mostrando overlay de error")
+
+        val errorLayout = binding.root.findViewById<View>(R.id.layout_error_servers) ?: return
+        val tvTitle = errorLayout.findViewById<TextView>(R.id.tv_error_title)
+        val tvMessage = errorLayout.findViewById<TextView>(R.id.tv_error_message)
+        val btnRetry = errorLayout.findViewById<TextView>(R.id.btn_error_retry)
+        val btnCancel = errorLayout.findViewById<TextView>(R.id.btn_error_cancel)
+
+        // Mensaje contextual según si ya había progreso
+        val videoType = args.videoType
+        when (videoType) {
+            is Video.Type.Movie -> {
+                tvTitle.text = "No se encontraron servidores"
+                tvMessage.text = "Puede ser un error temporal en los servidores.\n\n" +
+                    "Si ya habías visto parte de esta película, es muy probable\n" +
+                    "que el error sea nuestro. Reintenta ahora o más tarde."
+            }
+            is Video.Type.Episode -> {
+                tvTitle.text = "No se encontraron servidores"
+                tvMessage.text = "Puede ser un error temporal en los servidores.\n\n" +
+                    "Si ya has visto episodios de esta serie y estos capítulos\n" +
+                    "ya están emitidos, es muy probable que el error sea nuestro.\n" +
+                    "Reintenta ahora o en unos minutos."
+            }
+            else -> {
+                tvTitle.text = "No se encontraron servidores"
+                tvMessage.text = "Puede ser un error temporal. Reintenta ahora o más tarde."
+            }
+        }
+
+        // Pausar el player si estaba reproduciendo
+        if (::player.isInitialized && player.isPlaying) {
+            player.pause()
+        }
+
+        // Mostrar el overlay
+        errorLayout.visibility = View.VISIBLE
+
+        // Botón reintentar
+        btnRetry.setOnClickListener {
+            Log.i(TAG, "showErrorServersOverlay: reintentando búsqueda de servers")
+            errorLayout.visibility = View.GONE
+            // Volver a buscar servers
+            viewModel.getServers(args.videoType, args.id)
+        }
+
+        // Botón cancelar — volver a detalles SIN sobrescribir progreso
+        btnCancel.setOnClickListener {
+            Log.i(TAG, "showErrorServersOverlay: cancelando — volviendo a detalles")
+            errorLayout.visibility = View.GONE
+            // Marcar que NO se debe guardar progreso al salir
+            videoLoadedSuccessfully = false
+            // Navegar a detalles
+            navigateToDetailsFromError()
+        }
+    }
+
+    /**
+     * Navega a la pantalla de detalles después de un error de servers.
+     * NO guarda progreso (porque el video nunca cargó correctamente).
+     */
+    private fun navigateToDetailsFromError() {
+        try {
+            val videoType = args.videoType
+            val navController = findNavController()
+            val navOptions = androidx.navigation.NavOptions.Builder()
+                .setPopUpTo(com.mew.wlfmovie.R.id.player, true)
+                .build()
+            when (videoType) {
+                is Video.Type.Movie -> {
+                    val bundle = android.os.Bundle().apply {
+                        putString("id", videoType.id)
+                    }
+                    navController.navigate(com.mew.wlfmovie.R.id.movie, bundle, navOptions)
+                }
+                is Video.Type.Episode -> {
+                    val bundle = android.os.Bundle().apply {
+                        putString("id", videoType.tvShow.id)
+                        putString("poster", videoType.tvShow.poster)
+                        putString("banner", videoType.tvShow.banner)
+                    }
+                    navController.navigate(com.mew.wlfmovie.R.id.tv_show, bundle, navOptions)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "navigateToDetailsFromError: error", e)
+            try { findNavController().navigateUp() } catch (_: Exception) {}
         }
     }
 

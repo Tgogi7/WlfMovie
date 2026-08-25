@@ -95,7 +95,7 @@ class PlayerViewModel(
         getSubtitles(episode)
     }
 
-    private fun getServers(videoType: Video.Type, id: String) = viewModelScope.launch(Dispatchers.IO) {
+    fun getServers(videoType: Video.Type, id: String) = viewModelScope.launch(Dispatchers.IO) {
         Log.d("PlayerViewModel", "Inizio ricerca server per ID: $id")
         lastVideoType = videoType
         lastId = id

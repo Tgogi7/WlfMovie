@@ -44,6 +44,44 @@ class SettingsMobileFragment : Fragment() {
         Glide.with(this).load(R.drawable.ic_wlfmovie_logo).into(binding.ivSettingsLogo)
         binding.tvSettingsVersion.text = "Versión ${BuildConfig.VERSION_NAME}"
 
+        // WLFMOVIE V6.1: Debug error collector (solo en debug)
+        if (BuildConfig.DEBUG) {
+            binding.btnSettingsDebugErrors.visibility = View.VISIBLE
+            binding.btnSettingsDebugErrors.setOnClickListener {
+                val errors = com.mew.wlfmovie.utils.DebugErrorCollector.getErrors()
+                if (errors.isEmpty()) {
+                    Toast.makeText(requireContext(), "No hay errores registrados", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
+                val errorText = com.mew.wlfmovie.utils.DebugErrorCollector.getErrorsAsText()
+                val count = com.mew.wlfmovie.utils.DebugErrorCollector.count()
+
+                val message = "$count errores registrados.\n\n" +
+                    errors.joinToString("\n---\n") { entry ->
+                        val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
+                            .format(java.util.Date(entry.timestamp))
+                        "[$time] [${entry.tag}] ${entry.message}" +
+                        if (entry.context.isNotEmpty()) "\n  Context: ${entry.context}" else "" +
+                        if (entry.stackTrace != null) "\n  Stack: ${entry.stackTrace.take(200)}" else ""
+                    }
+
+                android.app.AlertDialog.Builder(requireContext())
+                    .setTitle("Errores de debug ($count)")
+                    .setMessage(message)
+                    .setPositiveButton("Cerrar") { _, _ -> }
+                    .setNegativeButton("Copiar") { _, _ ->
+                        val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                            as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(
+                            android.content.ClipData.newPlainText("WlfMovie Debug", errorText)
+                        )
+                        Toast.makeText(requireContext(), "Copiado al portapapeles", Toast.LENGTH_SHORT).show()
+                    }
+                    .show()
+            }
+        }
+
         binding.btnSettingsBack.setOnClickListener {
             findNavController().navigateUp()
         }

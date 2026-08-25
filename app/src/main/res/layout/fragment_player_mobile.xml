@@ -239,4 +239,15 @@
             app:tint="#FFFFFF" />
     </LinearLayout>
 
+    <!-- WLFMOVIE V6.1: Overlay de error cuando no hay servers -->
+    <include
+        android:id="@+id/layout_error_servers"
+        layout="@layout/layout_error_servers"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

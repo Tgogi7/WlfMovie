@@ -1222,6 +1222,11 @@ class TmdbProvider(override val language: String) : Provider {
                                 }
                             }
                         } catch (e: Exception) {
+                            com.mew.wlfmovie.utils.DebugErrorCollector.logError(
+                                "TmdbProvider-${provider.name}",
+                                "Provider falló: ${e.message}",
+                                "title=$targetTitle"
+                            )
                             emptyList()
                         }
                     } ?: emptyList()
@@ -1243,6 +1248,11 @@ class TmdbProvider(override val language: String) : Provider {
                         )
                     } catch (e: Exception) {
                         Log.e("WlfMovie", "[GNULA ERROR] -> ${e.message}")
+                        com.mew.wlfmovie.utils.DebugErrorCollector.logError(
+                            "GnulaProvider",
+                            "Gnula falló: ${e.message}",
+                            "title=$targetTitle"
+                        )
                         emptyList()
                     }
                 } ?: emptyList()
@@ -1284,6 +1294,12 @@ class TmdbProvider(override val language: String) : Provider {
             }
         } catch (e: Exception) {
             Log.e("WlfMovie", "[STREAM ERROR] -> ${e.message}")
+            com.mew.wlfmovie.utils.DebugErrorCollector.logError(
+                "TmdbProvider",
+                "Error en getServersFlow: ${e.message}",
+                "title=$targetTitle, videoType=$videoType",
+                e
+            )
             emit(collectedServers.toList())
         }
     }

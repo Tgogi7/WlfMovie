@@ -197,6 +197,27 @@
                 android:textColor="@color/wlf_text_secondary"
                 android:textSize="14sp" />
 
+            <!-- WLFMOVIE V6.1: Debug error collector (solo debug) -->
+            <TextView
+                android:id="@+id/btn_settings_debug_errors"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/wlf_bg_secondary_button_details"
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:paddingStart="20dp"
+                android:paddingTop="12dp"
+                android:paddingEnd="20dp"
+                android:paddingBottom="12dp"
+                android:text="🐛 Errores de debug"
+                android:textColor="@color/wlf_text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
         </LinearLayout>
 
     </ScrollView>

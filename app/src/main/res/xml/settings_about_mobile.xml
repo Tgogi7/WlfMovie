@@ -8,5 +8,11 @@
         app:title="@string/settings_about_version"
         tools:summary="@string/settings_about_version_name" />
 
+    <!-- WLFMOVIE V6.1: Debug error collector (visibilidad controlada en código) -->
+    <Preference
+        app:iconSpaceReserved="false"
+        app:key="p_settings_about_debug_errors"
+        app:title="Errores de debug"
+        app:summary="Ver errores recopilados" />
 
 </androidx.preference.PreferenceScreen>

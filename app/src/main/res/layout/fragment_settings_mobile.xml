@@ -202,6 +202,26 @@
                 android:textColor="@color/wlf_text_secondary"
                 android:textSize="13sp" />
 
+            <!-- WLFMOVIE V6.1: Debug error collector -->
+            <TextView
+                android:id="@+id/btn_settings_debug_errors"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/wlf_bg_secondary_button_details"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingStart="16dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="10dp"
+                android:text="🐛 Errores de debug"
+                android:textColor="@color/wlf_text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
         </LinearLayout>
 
     </ScrollView>

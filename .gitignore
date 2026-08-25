@@ -10,3 +10,6 @@
 local.properties
 *.salive
 *.log
+
+# Android release builds
+/app/release/
