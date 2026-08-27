@@ -107,6 +107,51 @@ class MovieViewModel(id: String, private val database: AppDatabase) : ViewModel(
             _state.emit(State.SuccessLoading(movie))
         } catch (e: Exception) {
             Log.e("MovieViewModel", "getMovie: ", e)
+            // WLFMOVIE V6.3.4: sin internet / TMDB caido → NO mostrar la
+            // pantalla de error si tenemos algo local que mostrar:
+            //  1. Datos de la pelicula cacheados en DB (sesiones online previas)
+            //     → detalles desde cache (sin overview nueva, pero con todo lo
+            //     guardado: titulo, poster, generos, etc.).
+            //  2. Pelicula DESCARGADA → ademas sobreescribir poster/banner con
+            //     las rutas LOCALES guardadas junto al video, para que la
+            //     caratula se vea aunque no haya red.
+            // Solo si no hay NADA (no cacheada y no descargada) caemos en
+            // FailedLoading.
+            try {
+                val dbMovie = database.movieDao().getById(id)
+                val downloaded = database.downloadDao().getById(id)
+                    ?.takeIf { java.io.File(it.filePath).exists() }
+                val fallbackMovie: Movie? = when {
+                    dbMovie != null -> dbMovie
+                    downloaded != null -> Movie(
+                        id = downloaded.id,
+                        title = downloaded.title,
+                        poster = downloaded.poster,
+                        banner = downloaded.banner,
+                    )
+                    else -> null
+                }
+                if (fallbackMovie != null) {
+                    if (downloaded != null) {
+                        if (!downloaded.poster.isNullOrBlank()) {
+                            fallbackMovie.poster = downloaded.poster
+                        }
+                        if (!downloaded.banner.isNullOrBlank()) {
+                            fallbackMovie.banner = downloaded.banner
+                        }
+                    }
+                    Log.i(
+                        "MovieViewModel",
+                        "getMovie: TMDB fallo pero hay datos locales para '$id' " +
+                            "(db=${dbMovie != null}, descargada=${downloaded != null}) — " +
+                            "mostrando detalles offline"
+                    )
+                    _state.emit(State.SuccessLoading(fallbackMovie))
+                    return@launch
+                }
+            } catch (fallbackError: Exception) {
+                Log.w("MovieViewModel", "getMovie fallback local tambien fallo: ${fallbackError.message}")
+            }
             _state.emit(State.FailedLoading(e))
         }
     }

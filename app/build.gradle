@@ -31,7 +31,7 @@ android {
         minSdk 21
         targetSdk 35
         versionCode 20
-        versionName "6.0"
+        versionName "6.4.0"
 
         buildConfigField "String", "APP_LAYOUT", "\"${properties.getProperty("APP_LAYOUT")}\""
         buildConfigField "String", "TMDB_API_KEY", "\"${properties.getProperty("TMDB_API_KEY")}\""
@@ -121,6 +121,10 @@ dependencies {
     implementation 'androidx.fragment:fragment-ktx:1.8.6'
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.8.7'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    // WLFMOVIE V6.3.3: ProcessLifecycleOwner — fallback para los collectors de
+    // progreso de descarga en MovieViewHolder cuando el view tree no tiene
+    // LifecycleOwner (fix UI de detalles sin progreso).
+    implementation 'androidx.lifecycle:lifecycle-process:2.8.7'
     implementation 'androidx.preference:preference-ktx:1.2.1'
     implementation 'androidx.leanback:leanback-preference:1.2.0'
 

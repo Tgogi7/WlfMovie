@@ -16,6 +16,12 @@
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- WLFMOVIE Update 7: Descargas offline (peliculas Remux) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
@@ -59,6 +65,12 @@
             android:name=".activities.tools.BypassWebViewActivity"
             android:exported="false"
             android:theme="@style/AppTheme.Mobile" />
+
+        <!-- WLFMOVIE Update 7: Foreground service para descargas offline -->
+        <service
+            android:name=".download.MovieDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -1134,6 +1134,14 @@ class PlayerMobileFragment : Fragment() {
                     ?: false
 
                 if (!isPlaying && hasUri) {
+                    // WLFMOVIE Update 7: Si el video es offline (pelicula descargada),
+                    // guardar el progreso solo en `downloads` y saltar el resto del
+                    // bloque (no tocar movies.watchHistory ni UserDataCache ni autoUpload).
+                    if (viewModel.isPlayingOffline) {
+                        saveOfflineWatchProgress()
+                        return
+                    }
+
                     val videoType = args.videoType
                     val watchItem: WatchItem? = when (videoType) {
                         is Video.Type.Movie -> database.movieDao().getById(videoType.id)
@@ -1222,30 +1230,53 @@ class PlayerMobileFragment : Fragment() {
         if (currentPosition == 0L) {
             val videoType = args.videoType
             val provider = UserPreferences.currentProvider
-            
-            val watchItem: WatchItem? = when (videoType) {
-                is Video.Type.Movie -> {
-                    // Try cache first, then DB
-                    var movie = if (provider != null) {
-                        UserDataCache.read(requireContext(), provider)?.continueWatchingMovies
-                            ?.find { it.id == videoType.id }?.toMovie()
-                    } else null
-                    movie ?: database.movieDao().getById(videoType.id)
-                }
-                is Video.Type.Episode -> {
-                    // Try cache first, then DB
-                    var episode = if (provider != null) {
-                        UserDataCache.read(requireContext(), provider)?.continueWatchingEpisodes
-                            ?.find { it.id == videoType.id }?.toEpisode()
-                    } else null
-                    episode ?: database.episodeDao().getById(videoType.id)
-                }
-            }
-            
-            val lastPlaybackPositionMillis = watchItem?.watchHistory
-                ?.let { it.lastPlaybackPositionMillis - 10.seconds.inWholeMilliseconds }
 
-            player.seekTo(lastPlaybackPositionMillis ?: 0)
+            // WLFMOVIE V6.3.1: Si estamos reproduciendo una pelicula descargada
+            // offline (file://), el progreso guardado esta en la tabla
+            // `downloads.watchPositionMillis` — NO en `movies.watchHistory`.
+            // Sin este branch, el `watchItem` sale null (la pelicula nunca se
+            // vio online) y el player arranca desde 0, ignorando el progreso
+            // guardado.
+            //
+            // La UI de home (Continue Watching / Downloads) ya lee el campo
+            // `watchPositionMillis` y por eso la barra de progreso ahi aparece
+            // correcta. Pero el player no lo leia — bug.
+            if (viewModel.isPlayingOffline && videoType is Video.Type.Movie) {
+                val offlinePosition = runCatching {
+                    database.downloadDao().getById(videoType.id)?.watchPositionMillis ?: 0L
+                }.getOrDefault(0L)
+                // Restar 10s para no reanudar exacto en el corte (donde el
+                // usuario salio) — mismo offset que el branch online.
+                val seekTo = (offlinePosition - 10_000L).coerceAtLeast(0L)
+                if (seekTo > 0L) {
+                    Log.i(TAG, "Offline resume: seeking to ${seekTo}ms (saved=${offlinePosition}ms)")
+                }
+                player.seekTo(seekTo)
+            } else {
+                val watchItem: WatchItem? = when (videoType) {
+                    is Video.Type.Movie -> {
+                        // Try cache first, then DB
+                        var movie = if (provider != null) {
+                            UserDataCache.read(requireContext(), provider)?.continueWatchingMovies
+                                ?.find { it.id == videoType.id }?.toMovie()
+                        } else null
+                        movie ?: database.movieDao().getById(videoType.id)
+                    }
+                    is Video.Type.Episode -> {
+                        // Try cache first, then DB
+                        var episode = if (provider != null) {
+                            UserDataCache.read(requireContext(), provider)?.continueWatchingEpisodes
+                                ?.find { it.id == videoType.id }?.toEpisode()
+                        } else null
+                        episode ?: database.episodeDao().getById(videoType.id)
+                    }
+                }
+
+                val lastPlaybackPositionMillis = watchItem?.watchHistory
+                    ?.let { it.lastPlaybackPositionMillis - 10.seconds.inWholeMilliseconds }
+
+                player.seekTo(lastPlaybackPositionMillis ?: 0)
+            }
         } else {
             player.seekTo(currentPosition)
         }
@@ -1373,6 +1404,15 @@ class PlayerMobileFragment : Fragment() {
             Log.i("WlfMovie-Player", "saveWatchProgress: skip (videoLoadedSuccessfully=false)")
             return
         }
+
+        // WLFMOVIE Update 7: Si el video es offline (pelicula descargada localmente),
+        // guardar el progreso solo en `downloads.watchPositionMillis`/`isWatched`
+        // y NO tocar `movies.watchHistory` ni llamar a `SyncManager.autoUpload`.
+        if (viewModel.isPlayingOffline) {
+            saveOfflineWatchProgress()
+            return
+        }
+
         try {
             val videoType = args.videoType
             val position = player.currentPosition
@@ -1409,6 +1449,36 @@ class PlayerMobileFragment : Fragment() {
             com.mew.wlfmovie.utils.SyncManager.autoUpload(requireContext())
         } catch (e: Exception) {
             Log.e("WlfMovie-Player", "Error saveWatchProgress: ${e.message}")
+        }
+    }
+
+    /**
+     * WLFMOVIE Update 7: Guarda el progreso de reproduccion de una pelicula
+     * descargada LOCALMENTE (offline) en la tabla `downloads`. NO toca la tabla
+     * `movies` ni llama a `SyncManager.autoUpload` (el plan exige aislamiento
+     * total del sync).
+     *
+     * Se llama desde [saveWatchProgress] y desde el listener `onIsPlayingChanged`
+     * cuando [viewModel.isPlayingOffline] == true.
+     */
+    private fun saveOfflineWatchProgress() {
+        try {
+            val videoType = args.videoType as? Video.Type.Movie ?: return
+            val position = player.currentPosition.coerceAtLeast(0L)
+            val duration = player.duration.takeIf { it > 0 } ?: return
+            val isWatched = position >= (duration - 10_000L)
+            lifecycleScope.launch(Dispatchers.IO) {
+                runCatching {
+                    database.downloadDao().updateProgress(
+                        id = videoType.id,
+                        position = position,
+                        duration = duration,
+                        isWatched = isWatched,
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("WlfMovie-Player", "Error saveOfflineWatchProgress: ${e.message}")
         }
     }
 
@@ -1727,12 +1797,28 @@ class PlayerMobileFragment : Fragment() {
      * Si el user cancela → detiene el cast y vuelve al player normal.
      */
     private fun showRemoteWaitingDialog(url: String) {
-        val message = buildString {
-            append("En tu PC, abre esta URL en el navegador:\n\n")
-            append(url)
-            append("\n\n")
-            append("⚠ Activá batería sin restricciones para evitar cortes inesperados.\n")
-            append("Cerrar este diálogo cancela el cast.")
+        // WLFMOVIE V6.4: Si el video es una pelicula DESCARGADA, el envío al PC
+        // es 100% por red local (sin internet) y el progreso se guarda solo en
+        // la sección Descargas — el diálogo se lo hace saber al usuario.
+        val isOffline = viewModel.isPlayingOffline
+        val message = if (isOffline) {
+            buildString {
+                append("En tu PC, abre esta URL en el navegador:\n\n")
+                append(url)
+                append("\n\n")
+                append("Enviando la película DESCARGADA — funciona SIN internet (red local/hotspot).\n")
+                append("El progreso se guarda solo en Descargas, nada de nube.\n\n")
+                append("⚠ Activá batería sin restricciones para evitar cortes inesperados.\n")
+                append("Cerrar este diálogo cancela el envío.")
+            }
+        } else {
+            buildString {
+                append("En tu PC, abre esta URL en el navegador:\n\n")
+                append(url)
+                append("\n\n")
+                append("⚠ Activá batería sin restricciones para evitar cortes inesperados.\n")
+                append("Cerrar este diálogo cancela el cast.")
+            }
         }
 
         val textView = TextView(requireContext()).apply {
@@ -1745,7 +1831,7 @@ class PlayerMobileFragment : Fragment() {
 
         remotePlayDialog?.dismiss()
         remotePlayDialog = AlertDialog.Builder(requireContext())
-            .setTitle("💻 Esperando conexión")
+            .setTitle(if (isOffline) "💻 Enviar descarga al PC" else "💻 Esperando conexión")
             .setView(textView)
             .setCancelable(false)
             .setPositiveButton("Copiar URL") { _, _ ->

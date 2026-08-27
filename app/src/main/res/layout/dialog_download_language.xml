@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE V6.3.1: Diálogo de selección de idioma para descarga.
+  Estilo on-brand: fondo wlf_bg_dialog (gradiente morado oscuro), icono
+  wlf_ic_download tintado fucsia, opciones de idioma como filas clicables
+  (no radio buttons nativos, quedan feos en modo oscuro), botones grandes
+  con wlf_bg_secondary_button_details y wlf_bg_play_button_details.
+
+  IDs:
+    - tv_dialog_title          → título ("Descargar <pelicula>")
+    - tv_dialog_subtitle       → texto "Elige el idioma"
+    - rv_languages             → RecyclerView vertical con las opciones
+    - tv_dialog_size           → "Tamaño aprox: 1.2 GB" o "Calculando..."
+    - btn_cancel               → botón Cancelar
+    - btn_download             → botón Descargar
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="24dp"
+    android:background="@drawable/wlf_bg_dialog"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <!-- Icono -->
+    <ImageView
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="center"
+        android:layout_marginBottom="12dp"
+        android:src="@drawable/wlf_ic_download"
+        android:tint="@color/wlf_fuchsia_neon"
+        tools:ignore="UseAppTint" />
+
+    <!-- Título -->
+    <TextView
+        android:id="@+id/tv_dialog_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        tools:text="Descargar Backrooms" />
+
+    <!-- Subtítulo "Elige el idioma" -->
+    <TextView
+        android:id="@+id/tv_dialog_subtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:gravity="center"
+        android:text="@string/download_language_dialog_choose_language"
+        android:textColor="@color/wlf_text_secondary"
+        android:textSize="13sp"
+        android:textStyle="italic" />
+
+    <!-- Lista de idiomas (filas custom, single-choice) -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_languages"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:nestedScrollingEnabled="false"
+        android:overScrollMode="never" />
+
+    <!-- Tamaño estimado -->
+    <TextView
+        android:id="@+id/tv_dialog_size"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
+        android:textColor="@color/wlf_text_secondary"
+        android:textSize="13sp"
+        tools:text="Tamaño aprox: 1.2 GB" />
+
+    <!-- Botones -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:orientation="horizontal">
+
+        <!-- Cancelar -->
+        <TextView
+            android:id="@+id/btn_cancel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/wlf_bg_secondary_button_details"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:padding="14dp"
+            android:text="@string/download_language_dialog_cancel"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <!-- Descargar (deshabilitado hasta que se elija idioma) -->
+        <TextView
+            android:id="@+id/btn_download"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:alpha="0.4"
+            android:background="@drawable/wlf_bg_play_button_details"
+            android:clickable="true"
+            android:enabled="false"
+            android:focusable="true"
+            android:gravity="center"
+            android:padding="14dp"
+            android:text="@string/download_language_dialog_download"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,26 +1,22 @@
 package com.mew.wlfmovie.utils
 
-import android.util.Log
-import com.mew.wlfmovie.BuildConfig
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.concurrent.ConcurrentLinkedDeque
-
 /**
- * WLFMOVIE V6.1: Recopilador de errores para builds de debug.
+ * WLFMOVIE V6.2: Facade de compatibilidad sobre [CrashLogger].
  *
- * Captura errores que ocurren en segundo plano (providers, extractores, sync, etc.)
- * y los guarda en memoria con timestamp, stack trace y contexto.
+ * Antes era un colector en memoria, solo debug, con limite de 200 entradas
+ * y sin persistencia. Su comportamiento era insuficiente: cuando la app
+ * crasheaba, todo el log moria con el proceso y el usuario no tenia forma
+ * de saber por que.
  *
- * Solo activo en BuildConfig.DEBUG — en release no hace nada.
+ * Ahora delega en [CrashLogger] que es:
+ *  - persistente (archivo `filesDir/wlfmovie-errors.log`)
+ *  - infinito (sin limite de entradas; solo trunca por tamano a ~8 MB)
+ *  - activo en release
+ *  - capaz de capturar crashes globales via [CrashHandler]
  *
- * Accesible desde Settings > About > "Errores de debug" (solo visible en debug).
+ * Mantenemos la API publica para no romper llamadas existentes.
  */
 object DebugErrorCollector {
-
-    private const val TAG = "WlfMovie-DebugErrors"
-    private const val MAX_ERRORS = 200
 
     data class ErrorEntry(
         val timestamp: Long,
@@ -30,81 +26,21 @@ object DebugErrorCollector {
         val context: String,
     )
 
-    private val errors = ConcurrentLinkedDeque<ErrorEntry>()
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-
-    /**
-     * Registra un error. Solo funciona en debug.
-     */
     fun logError(tag: String, message: String, throwable: Throwable? = null, context: String = "") {
-        if (!BuildConfig.DEBUG) return
-
-        val entry = ErrorEntry(
-            timestamp = System.currentTimeMillis(),
-            tag = tag,
-            message = message,
-            stackTrace = throwable?.stackTraceToString()?.take(2000),
-            context = context,
-        )
-        errors.addFirst(entry)
-
-        // Mantener solo los últimos MAX_ERRORS
-        while (errors.size > MAX_ERRORS) {
-            errors.pollLast()
-        }
-
-        Log.e(tag, message, throwable)
+        CrashLogger.logError(tag = tag, message = message, throwable = throwable, context = context)
     }
 
-    /**
-     * Registra un error con contexto adicional (ej: qué provider, qué película).
-     */
+    /** Alias con orden antiguo (context antes que throwable). Delegado via named args. */
     fun logError(tag: String, message: String, context: String, throwable: Throwable? = null) {
-        logError(tag, message, throwable, context)
+        CrashLogger.logError(tag = tag, message = message, throwable = throwable, context = context)
     }
 
-    /**
-     * Devuelve todos los errores registrados (más reciente primero).
-     */
-    fun getErrors(): List<ErrorEntry> = errors.toList()
+    fun getErrors(): List<ErrorEntry> =
+        CrashLogger.getErrors().map { ErrorEntry(it.timestamp, it.tag, it.message, it.stackTrace, it.context) }
 
-    /**
-     * Devuelve los errores como texto formateado (para compartir/descargar).
-     */
-    fun getErrorsAsText(): String {
-        if (errors.isEmpty()) return "No hay errores registrados."
+    fun getErrorsAsText(): String = CrashLogger.getErrorsAsText()
 
-        val sb = StringBuilder()
-        sb.append("=== WlfMovie Debug Error Log ===\n")
-        sb.append("Total: ${errors.size} errores\n")
-        sb.append("Build: ${BuildConfig.VERSION_NAME}\n\n")
+    fun count(): Int = CrashLogger.count()
 
-        for (entry in errors) {
-            sb.append("--- ${dateFormat.format(Date(entry.timestamp))} ---\n")
-            sb.append("Tag: ${entry.tag}\n")
-            sb.append("Message: ${entry.message}\n")
-            if (entry.context.isNotEmpty()) {
-                sb.append("Context: ${entry.context}\n")
-            }
-            if (entry.stackTrace != null) {
-                sb.append("Stack:\n${entry.stackTrace.take(500)}\n")
-            }
-            sb.append("\n")
-        }
-
-        return sb.toString()
-    }
-
-    /**
-     * Limpia todos los errores.
-     */
-    fun clear() {
-        errors.clear()
-        Log.i(TAG, "Errores limpiados")
-    }
-
-    /**
-     * Devuelve el número de errores registrados.
-     */
-    fun count(): Int = errors.size
+    fun clear() = CrashLogger.clear()
 }

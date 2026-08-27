@@ -93,6 +93,18 @@ class MainMobileActivity : FragmentActivity() {
 
     private var updateAppDialog: UpdateAppMobileDialog? = null
 
+    /**
+     * WLFMOVIE V6.3.1: Launcher para pedir POST_NOTIFICATIONS en runtime (Android 13+).
+     * No hacemos nada con el resultado — el foreground service sigue funcionando
+     * sin el permiso, solo que el icono de progreso no aparece en la barra de
+     * estado. Si el usuario lo concede, las proximas notificaciones saldran.
+     */
+    private val requestNotificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { _ ->
+            // No-op: el permiso se pide una sola vez; el resultado afecta
+            // solo a futuras llamadas a NotificationManagerCompat.notify().
+        }
+
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(AppLanguageManager.wrap(newBase))
     }
@@ -110,9 +122,56 @@ class MainMobileActivity : FragmentActivity() {
             com.mew.wlfmovie.utils.SyncManager.autoDownloadIfNewer(this@MainMobileActivity)
         }
 
+        // WLFMOVIE V6.2: Mostrar el LastCrashDialog si hubo un crash fatal
+        // en la ejecucion anterior y el usuario aun no lo ha visto.
+        // Solo en DEBUG — en release no se persisten crashes ni se muestran
+        // popups al usuario final.
+        if (com.mew.wlfmovie.BuildConfig.DEBUG) {
+            try {
+                if (com.mew.wlfmovie.utils.CrashLogger.hasUnreadCrash()) {
+                    com.mew.wlfmovie.ui.LastCrashDialog.show(
+                        context = this,
+                        onViewAll = {
+                            // Abrir el recopilador completo de errores.
+                            val count = com.mew.wlfmovie.utils.CrashLogger.count()
+                            val text = com.mew.wlfmovie.utils.CrashLogger.getErrorsAsText()
+                            showCollectedErrorsDialog(count, text)
+                        },
+                        onDismiss = { /* no-op */ },
+                    )
+                }
+            } catch (t: Throwable) {
+                android.util.Log.e("WlfMovie-App", "No se pudo mostrar LastCrashDialog", t)
+            }
+        }
+
         AnimeOnlineNinjaProvider.init(this)
         Cine24hProvider.init(this)
         FilmyOnlineCcProvider.init(this)
+
+        // WLFMOVIE V6.3.1: Pedir permiso de POST_NOTIFICATIONS en runtime
+        // (Android 13+ lo requiere, aunque este en el manifest). Sin esto,
+        // las notificaciones de progreso de descarga NO aparecen — el
+        // foreground service sigue corriendo pero el icono en la barra de
+        // estado esta oculto, asi que el usuario no sabe cuanto lleva ni
+        // si esta descargando.
+        //
+        // Se pide una sola vez al primer arranque. Si el usuario lo niega,
+        // respetamos su decision (no fastidiamos con prompts repetidos);
+        // el servicio de descarga sigue funcionando, solo que sin icono
+        // en la barra de estado.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            try {
+                val granted = checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                if (granted != PackageManager.PERMISSION_GRANTED) {
+                    requestNotificationPermissionLauncher.launch(
+                        android.Manifest.permission.POST_NOTIFICATIONS
+                    )
+                }
+            } catch (t: Throwable) {
+                android.util.Log.w("WlfMovie-App", "No se pudo pedir POST_NOTIFICATIONS", t)
+            }
+        }
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val palette = ThemeManager.palette(UserPreferences.selectedTheme)
@@ -572,6 +631,51 @@ class MainMobileActivity : FragmentActivity() {
         } else {
             controller.show(WindowInsetsCompat.Type.systemBars())
         }
+    }
+
+    /**
+     * WLFMOVIE V6.2: Dialogo completo del recopilador de errores.
+     * Se abre desde el LastCrashDialog ("Ver todos") o desde Settings.
+     * Botones: Copiar todo / Borrar / Cerrar.
+     */
+    private fun showCollectedErrorsDialog(count: Int, fullText: String) {
+        val message = if (count == 0) {
+            getString(R.string.debug_errors_empty)
+        } else {
+            getString(R.string.debug_errors_dialog_title, count) + "\n\n" +
+                fullText.take(20_000) // Cap para no matar el AlertDialog
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.debug_errors_dialog_title, count))
+            .setMessage(message)
+            .setPositiveButton(R.string.debug_errors_clear) { _, _ ->
+                android.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.debug_errors_clear_confirm)
+                    .setPositiveButton(R.string.debug_errors_clear_yes) { _, _ ->
+                        com.mew.wlfmovie.utils.CrashLogger.clear()
+                        android.widget.Toast.makeText(
+                            this,
+                            R.string.debug_errors_clear_done,
+                            android.widget.Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                    .setNegativeButton(R.string.debug_errors_clear_no, null)
+                    .show()
+            }
+            .setNegativeButton(R.string.debug_errors_copy_all) { _, _ ->
+                val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                    as android.content.ClipboardManager
+                clipboard.setPrimaryClip(
+                    android.content.ClipData.newPlainText("WlfMovie Errors", fullText)
+                )
+                android.widget.Toast.makeText(
+                    this,
+                    R.string.debug_errors_copied_toast,
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+            .setNeutralButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun applyThemeNavigationChrome() {

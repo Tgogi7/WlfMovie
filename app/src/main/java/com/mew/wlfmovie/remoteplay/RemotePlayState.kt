@@ -49,6 +49,14 @@ object RemotePlayState {
     var currentPosition: Long = 0L
     var currentDuration: Long = 0L
 
+    // WLFMOVIE V6.4: Modo LOCAL (compartir pelicula DESCARGADA al PC).
+    // true cuando el video.source es file:// — el server sirve el archivo
+    // del disco directamente por la LAN (cero internet), y el progreso se
+    // guarda SOLO en la tabla `downloads` (nada de nube ni continue watching).
+    var isLocalFile: Boolean = false
+    var localFilePath: String? = null      // path absoluto del archivo (sin file://)
+    var downloadId: String? = null         // = movie.id en la tabla downloads
+
     // Flag: true cuando el PC manda {type:"ended"} — el video terminó naturalmente
     var videoEnded: Boolean = false
 
@@ -78,6 +86,9 @@ object RemotePlayState {
         currentPosition = 0L
         currentDuration = 0L
         videoEnded = false
+        isLocalFile = false
+        localFilePath = null
+        downloadId = null
         _serverUrl.value = null
         _connectionState.value = ConnectionState.IDLE
         _remotePosition.value = 0L

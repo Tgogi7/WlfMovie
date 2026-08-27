@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE V6.3.1: Selector para el radio indicator del diálogo de idioma.
+  - state_activated=false: anillo morado hueco (no seleccionado)
+  - state_activated=true:  círculo fucsia relleno (seleccionado)
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_activated="true">
+        <shape android:shape="oval">
+            <solid android:color="@color/wlf_fuchsia_neon" />
+            <size android:width="22dp" android:height="22dp" />
+            <stroke android:width="2dp" android:color="@color/wlf_fuchsia_glow" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@android:color/transparent" />
+            <size android:width="22dp" android:height="22dp" />
+            <stroke android:width="2dp" android:color="@color/wlf_purple_light" />
+        </shape>
+    </item>
+</selector>

@@ -34,6 +34,13 @@ class HomeMobileFragment : Fragment() {
 
     private var hasAutoCleared409: Boolean = false
 
+    /**
+     * WLFMOVIE V6.3.1: True si ya mostramos el toast "Sin conexion, mostrando
+     * solo descargas" en esta sesion offline. Evita spammear el toast cada
+     * vez que el usuario reentra al home (ej. vuelve de ver una descarga).
+     */
+    private var hasShownOfflineToast: Boolean = false
+
     private var _binding: FragmentHomeMobileBinding? = null
     private val binding get() = _binding!!
 
@@ -79,10 +86,37 @@ class HomeMobileFragment : Fragment() {
                         root.visibility = View.VISIBLE
                         pbIsLoading.visibility = View.VISIBLE
                         gIsLoadingRetry.visibility = View.GONE
+                        tvIsLoadingOffline.visibility = View.GONE
                     }
                     is HomeViewModel.State.SuccessLoading -> {
                         displayHome(state.categories)
                         binding.isLoading.root.visibility = View.GONE
+                    }
+                    // WLFMOVIE V6.3.4: sin internet / TMDB caido y SIN descargas.
+                    // Aviso simple, sin botones de Reintentar / Vaciar cache /
+                    // Detalles del error. El usuario pidio no ver mas la
+                    // pantalla de error en el home.
+                    HomeViewModel.State.OfflineNoDownloads -> binding.isLoading.apply {
+                        root.visibility = View.VISIBLE
+                        pbIsLoading.visibility = View.GONE
+                        gIsLoadingRetry.visibility = View.GONE
+                        tvIsLoadingOffline.visibility = View.VISIBLE
+                    }
+                    // WLFMOVIE V6.3.1: Sin internet pero hay descargas.
+                    // Mostramos solo la categoria Downloads + toast informativo.
+                    // NO mostramos la pantalla de error.
+                    is HomeViewModel.State.OfflineWithDownloads -> {
+                        displayHome(state.categories)
+                        binding.isLoading.root.visibility = View.GONE
+                        // Mostrar toast una sola vez por sesion offline.
+                        if (!hasShownOfflineToast) {
+                            hasShownOfflineToast = true
+                            Toast.makeText(
+                                requireContext(),
+                                getString(com.mew.wlfmovie.R.string.download_offline_mode),
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
                     }
                     is HomeViewModel.State.FailedLoading -> {
                         val code = (state.error as? retrofit2.HttpException)?.code()
@@ -101,6 +135,7 @@ class HomeMobileFragment : Fragment() {
                         binding.isLoading.apply {
                             pbIsLoading.visibility = View.GONE
                             gIsLoadingRetry.visibility = View.VISIBLE
+                            tvIsLoadingOffline.visibility = View.GONE
                             val doRetry = { viewModel.getHome() }
                             btnIsLoadingRetry.setOnClickListener { doRetry() }
                             btnIsLoadingClearCache.setOnClickListener {
@@ -184,6 +219,19 @@ class HomeMobileFragment : Fragment() {
                 }
             }
 
+        // WLFMOVIE Update 7: Renombrar "Downloads" -> R.string.home_downloads y marcar
+        // los items con el mismo itemType que Continue Watching (con pb_movie_progress).
+        categories
+            .find { it.name == "Downloads" }
+            ?.also {
+                it.name = getString(R.string.home_downloads)
+                it.list.forEach { show ->
+                    when (show) {
+                        is Movie -> show.itemType = AppAdapter.Type.MOVIE_CONTINUE_WATCHING_MOBILE_ITEM
+                    }
+                }
+            }
+
         categories
             .find { it.name == Category.FAVORITE_MOVIES }
             ?.also { it.name = getString(R.string.home_favorite_movies) }
@@ -196,7 +244,11 @@ class HomeMobileFragment : Fragment() {
             categories
                 .filter { it.list.isNotEmpty() }
                 .onEach { category ->
-                    if (category.name != Category.FEATURED && category.name != getString(R.string.home_continue_watching)) {
+                    // WLFMOVIE Update 7: No sobreescribir el itemType de Continue Watching
+                    // ni de Downloads (ambos usan MOVIE_CONTINUE_WATCHING_MOBILE_ITEM).
+                    if (category.name != Category.FEATURED &&
+                        category.name != getString(R.string.home_continue_watching) &&
+                        category.name != getString(R.string.home_downloads)) {
                         category.list.onEach { show ->
                             when (show) {
                                 is Episode -> show.itemType = AppAdapter.Type.EPISODE_MOBILE_ITEM

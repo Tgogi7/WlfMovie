@@ -8,7 +8,11 @@ import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoWSD
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.FilterInputStream
 import java.io.IOException
+import java.io.InputStream
 
 class RemotePlayServer(
     private val context: Context,
@@ -98,6 +102,7 @@ class RemotePlayServer(
             uri == "/" || uri.isEmpty() -> serveIndex()
             uri == "/info" -> serveInfo()
             uri == "/stream" -> serveStream(session)
+            uri == "/localfile" -> serveLocalFile(session)
             uri.startsWith("/proxy") -> serveProxyAsset(session)
             uri.startsWith("/assets/") -> serveAsset(uri.removePrefix("/assets/"))
             uri == "/logo" -> serveLogo()
@@ -189,9 +194,24 @@ class RemotePlayServer(
             put("url", "/stream")
             put("position", RemotePlayState.currentPosition)
             put("duration", RemotePlayState.currentDuration)
-            put("isHls", video.source.contains(".m3u8", ignoreCase = true))
+            put("isHls", resolveIsHls(video.source))
         }
         sendMessage(json)
+    }
+
+    /**
+     * WLFMOVIE V6.4: decide si el PC debe usar hls.js o video nativo.
+     * - Online: HLS si el source es .m3u8 (histórico).
+     * - Archivo local (.ts descargado): SIEMPRE HLS — /stream devuelve un
+     *   m3u8 sintético con byteranges (el navegador no reproduce .ts crudo).
+     * - Archivo local .mp4 (descargas viejas de Remux): video nativo con Range.
+     */
+    private fun resolveIsHls(sourceUrl: String): Boolean {
+        return if (RemotePlayState.isLocalFile) {
+            RemotePlayState.localFilePath?.endsWith(".ts", ignoreCase = true) ?: false
+        } else {
+            sourceUrl.contains(".m3u8", ignoreCase = true)
+        }
     }
 
     /**
@@ -289,7 +309,7 @@ class RemotePlayServer(
             put("subtitle", subtitle)
             put("position", RemotePlayState.currentPosition)
             put("duration", RemotePlayState.currentDuration)
-            put("isHls", video.source.contains(".m3u8", ignoreCase = true))
+            put("isHls", resolveIsHls(video.source))
             put("wsUrl", wsUrl ?: "")
         }
         Log.i(TAG, "serveInfo: $json")
@@ -340,6 +360,13 @@ class RemotePlayServer(
     }
 
     private fun serveStream(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+        // WLFMOVIE V6.4: Modo LOCAL (pelicula descargada) — servir el archivo
+        // del disco directamente por la LAN. CERO internet: no se toca el
+        // VideoProxy ni la URL del provider. El camino online queda intacto.
+        if (RemotePlayState.isLocalFile) {
+            return serveLocalStream(session)
+        }
+
         val video = RemotePlayState.currentVideo
         if (video == null) {
             Log.e(TAG, "serveStream: no hay currentVideo en RemotePlayState")
@@ -393,6 +420,220 @@ class RemotePlayServer(
         response.addHeader("Cache-Control", "no-cache, no-store")
         response.addHeader("Connection", "close")
         return response
+    }
+
+    // =================================================================
+    // WLFMOVIE V6.4: Servidor de archivo LOCAL (pelicula descargada)
+    // =================================================================
+
+    /**
+     * /stream en modo local.
+     * - .mp4 → se sirve directo con soporte Range (el navegador lo reproduce
+     *   nativo, seek instantáneo).
+     * - .ts → se genera un m3u8 SINTÉTICO con segmentos por rango de bytes;
+     *   hls.js del PC pide cada rango a /localfile con header Range.
+     */
+    private fun serveLocalStream(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+        val path = RemotePlayState.localFilePath
+        if (path.isNullOrBlank()) {
+            Log.e(TAG, "serveLocalStream: no hay localFilePath")
+            return newFixedLengthResponse(
+                NanoHTTPD.Response.Status.SERVICE_UNAVAILABLE,
+                "application/json",
+                "{\"error\":\"No hay archivo local cargado\"}"
+            )
+        }
+        val file = File(path)
+        if (!file.exists() || file.length() <= 0L) {
+            Log.e(TAG, "serveLocalStream: archivo no existe: $path")
+            return newFixedLengthResponse(
+                NanoHTTPD.Response.Status.SERVICE_UNAVAILABLE,
+                "application/json",
+                "{\"error\":\"El archivo descargado no existe en el dispositivo\"}"
+            )
+        }
+
+        return if (path.endsWith(".mp4", ignoreCase = true)) {
+            Log.i(TAG, "serveLocalStream: sirviendo MP4 local directo (${file.length()} bytes)")
+            serveFileRange(file, session, "video/mp4")
+        } else {
+            val baseUrl = RemotePlayState.serverUrl.value ?: "http://localhost:8080"
+            val playlist = LocalMediaPlaylist.build(
+                file,
+                "$baseUrl/localfile",
+                RemotePlayState.currentDuration
+            )
+            if (playlist == null) {
+                Log.e(TAG, "serveLocalStream: no se pudo generar la playlist sintetica")
+                return newFixedLengthResponse(
+                    NanoHTTPD.Response.Status.SERVICE_UNAVAILABLE,
+                    "application/json",
+                    "{\"error\":\"No se pudo leer el archivo descargado\"}"
+                )
+            }
+            Log.i(TAG, "serveLocalStream: playlist local generada (${playlist.segmentCount} segmentos, fmp4=${playlist.isFmp4})")
+            newFixedLengthResponse(
+                NanoHTTPD.Response.Status.OK,
+                "application/vnd.apple.mpegurl",
+                playlist.content
+            )
+        }
+    }
+
+    /**
+     * /localfile — sirve los bytes del archivo descargado. Endpoint usado por
+     * hls.js para pedir cada segmento virtual (via header Range) y por el
+     * modo .mp4 nativo. Responde 206 Partial Content cuando hay Range.
+     */
+    private fun serveLocalFile(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+        val path = RemotePlayState.localFilePath
+        if (path.isNullOrBlank()) {
+            return newFixedLengthResponse(
+                NanoHTTPD.Response.Status.SERVICE_UNAVAILABLE,
+                "application/json",
+                "{\"error\":\"No hay archivo local cargado\"}"
+            )
+        }
+        val file = File(path)
+        if (!file.exists() || file.length() <= 0L) {
+            Log.e(TAG, "serveLocalFile: archivo no existe: $path")
+            return newFixedLengthResponse(
+                NanoHTTPD.Response.Status.NOT_FOUND,
+                "text/plain",
+                "404 archivo no encontrado"
+            )
+        }
+        val mimeType = if (path.endsWith(".mp4", ignoreCase = true)) "video/mp4" else "video/mp2t"
+        return serveFileRange(file, session, mimeType)
+    }
+
+    /**
+     * Sirve un archivo del disco con soporte HTTP Range (206).
+     * Sin header Range → 200 con el archivo completo.
+     */
+    private fun serveFileRange(file: File, session: NanoHTTPD.IHTTPSession, mimeType: String): NanoHTTPD.Response {
+        val fileLen = file.length()
+        val rangeHeader = session.headers?.entries
+            ?.firstOrNull { it.key.equals("range", ignoreCase = true) }
+            ?.value
+
+        Log.i(TAG, "serveFileRange: ${file.name}, len=$fileLen, range=$rangeHeader")
+
+        if (rangeHeader != null) {
+            val parsed = parseRange(rangeHeader, fileLen)
+            if (parsed == null) {
+                val resp = newFixedLengthResponse(
+                    NanoHTTPD.Response.Status.RANGE_NOT_SATISFIABLE,
+                    "text/plain",
+                    "416 Range Not Satisfiable"
+                )
+                resp.addHeader("Content-Range", "bytes */$fileLen")
+                return resp
+            }
+            val (start, end) = parsed
+            val length = end - start + 1
+            val stream = boundedFileInputStream(file, start, length)
+                ?: return newFixedLengthResponse(
+                    NanoHTTPD.Response.Status.INTERNAL_ERROR,
+                    "text/plain",
+                    "500 error leyendo archivo"
+                )
+            val resp = newFixedLengthResponse(
+                NanoHTTPD.Response.Status.PARTIAL_CONTENT,
+                mimeType,
+                stream,
+                length
+            )
+            resp.addHeader("Content-Range", "bytes $start-$end/$fileLen")
+            resp.addHeader("Accept-Ranges", "bytes")
+            return resp
+        }
+
+        val stream = boundedFileInputStream(file, 0L, fileLen)
+            ?: return newFixedLengthResponse(
+                NanoHTTPD.Response.Status.INTERNAL_ERROR,
+                "text/plain",
+                "500 error leyendo archivo"
+            )
+        val resp = newFixedLengthResponse(
+            NanoHTTPD.Response.Status.OK,
+            mimeType,
+            stream,
+            fileLen
+        )
+        resp.addHeader("Accept-Ranges", "bytes")
+        resp.addHeader("Cache-Control", "no-cache, no-store")
+        return resp
+    }
+
+    /**
+     * Parsea un header "Range: bytes=A-B" | "bytes=A-" | "bytes=-S".
+     * Devuelve (start, end) inclusivos, o null si es inválido/fuera de rango.
+     */
+    private fun parseRange(rangeHeader: String, fileLen: Long): Pair<Long, Long>? {
+        val m = Regex("""bytes\s*=\s*(\d*)\s*-\s*(\d*)""").find(rangeHeader) ?: return null
+        val a = m.groupValues[1]
+        val b = m.groupValues[2]
+        return when {
+            a.isEmpty() && b.isEmpty() -> null
+            a.isEmpty() -> {
+                // "bytes=-S" → últimos S bytes
+                val suffix = b.toLongOrNull() ?: return null
+                if (suffix <= 0L) return null
+                val start = maxOf(0L, fileLen - suffix)
+                start to (fileLen - 1L)
+            }
+            else -> {
+                val start = a.toLongOrNull() ?: return null
+                if (start < 0L || start >= fileLen) return null
+                val end = if (b.isEmpty()) {
+                    fileLen - 1L
+                } else {
+                    minOf(b.toLongOrNull() ?: return null, fileLen - 1L)
+                }
+                if (start > end) null else start to end
+            }
+        }
+    }
+
+    /**
+     * InputStream sobre [file] que empieza en [start] y devuelve como máximo
+     * [length] bytes (EOF lógico al llegar al límite). null si falla el seek.
+     */
+    private fun boundedFileInputStream(file: File, start: Long, length: Long): InputStream? {
+        return try {
+            val fis = FileInputStream(file)
+            var skipped = 0L
+            while (skipped < start) {
+                val s = fis.skip(start - skipped)
+                if (s <= 0L) break
+                skipped += s
+            }
+            if (skipped < start) {
+                fis.close()
+                Log.e(TAG, "boundedFileInputStream: no se pudo saltar a $start (llegó a $skipped)")
+                return null
+            }
+            object : FilterInputStream(fis) {
+                private var remaining = length
+                override fun read(): Int {
+                    if (remaining <= 0L) return -1
+                    val r = super.read()
+                    if (r >= 0) remaining--
+                    return r
+                }
+                override fun read(b: ByteArray, off: Int, len: Int): Int {
+                    if (remaining <= 0L) return -1
+                    val toRead = minOf(len.toLong(), remaining).toInt()
+                    val r = super.read(b, off, toRead)
+                    if (r > 0) remaining -= r
+                    return r
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "boundedFileInputStream: error", e)
+            null
+        }
     }
 
     private fun serveProxyAsset(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {

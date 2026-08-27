@@ -80,4 +80,24 @@
         app:constraint_referenced_ids="tv_is_loading_error,btn_is_loading_retry,btn_is_loading_clear_cache,btn_is_loading_error_details"
         tools:visibility="visible" />
 
+    <!--
+      WLFMOVIE V6.3.4: Aviso simple para sin internet / servidor caido cuando
+      NO hay descargas (mirror del layout mobile).
+    -->
+    <TextView
+        android:id="@+id/tv_is_loading_offline"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="48dp"
+        android:gravity="center"
+        android:text="@string/loading_offline_title"
+        android:textColor="@color/wlf_text_secondary"
+        android:textSize="18sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

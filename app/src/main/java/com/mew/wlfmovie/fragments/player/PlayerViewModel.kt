@@ -5,6 +5,9 @@ import android.os.Bundle
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.MimeTypes
+import com.mew.wlfmovie.StreamFlixApp
+import com.mew.wlfmovie.database.AppDatabase
 import com.mew.wlfmovie.models.Video
 import com.mew.wlfmovie.providers.TmdbProvider
 import com.mew.wlfmovie.utils.CustomTabHelper
@@ -19,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import com.mew.wlfmovie.utils.SubDL
+import java.io.File
 
 class PlayerViewModel(
     videoType: Video.Type,
@@ -33,9 +37,86 @@ class PlayerViewModel(
 
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
+
+    /**
+     * WLFMOVIE Update 7: True cuando el video que se esta reproduciendo es un archivo
+     * local (descarga offline). Lo consulta PlayerMobileFragment.saveWatchProgress para
+     * decidir si guardar el progreso solo en la tabla `downloads` (y NO llamar a
+     * SyncManager.autoUpload).
+     */
+    @Volatile
+    var isPlayingOffline: Boolean = false
+        private set
     init {
         getServers(videoType, id)
         getSubtitles(videoType)
+    }
+
+    /**
+     * WLFMOVIE Update 7: Si la pelicula esta descargada localmente y el archivo
+     * existe, emite directamente SuccessLoadingVideo con un Video de file:// y
+     * un Video.Server sintetico. Marca [isPlayingOffline] = true para que el
+     * PlayerMobileFragment sepa que el progreso debe guardarse solo en
+     * `downloads.watchPositionMillis` (no en movies.watchHistory ni autoUpload).
+     *
+     * Solo aplica a peliculas (no episodios): la tabla `downloads` solo contiene
+     * peliculas segun el plan.
+     */
+    private suspend fun tryEmitOfflineVideo(videoType: Video.Type, id: String): Boolean {
+        if (videoType !is Video.Type.Movie) {
+            isPlayingOffline = false
+            return false
+        }
+        val appContext = runCatching { StreamFlixApp.instance.applicationContext }.getOrNull()
+            ?: return false
+        val downloaded = runCatching {
+            AppDatabase.getInstance(appContext).downloadDao().getById(id)
+        }.getOrNull() ?: run {
+            isPlayingOffline = false
+            return false
+        }
+        if (downloaded == null || !File(downloaded.filePath).exists()) {
+            // Si la row existe pero el archivo no, limpiar silenciosamente.
+            if (downloaded != null) {
+                runCatching {
+                    AppDatabase.getInstance(appContext).downloadDao().deleteById(id)
+                }
+            }
+            isPlayingOffline = false
+            return false
+        }
+
+        isPlayingOffline = true
+        val source = "file://${downloaded.filePath}"
+        // WLFMOVIE V6.2.4: set mimeType segun extension del archivo.
+        // - HLS descargado → `.ts` (MPEG-TS o fMP4 concatenado) → "application/x-mp2t".
+        //   Si lo dejamos como VIDEO_MP4, ExoPlayer intenta el extractor MP4 primero,
+        //   falla, y hace fallback a sniffing — pero ese fallback no es garantizado.
+        //   Setear "application/x-mp2t" fuerza el extractor MPEG-TS correcto.
+        //   (Nota: en media3 1.8.0 las constantes APPLICATION_M2TS / APPLICATION_MP2T
+        //    no estan expuestas en androidx.media3.common.MimeTypes, pero el VALOR
+        //    "application/x-mp2t" sigue siendo lo que usa internamente el extractor
+        //    para MPEG-TS. Pasamos el string literal directamente.)
+        // - Remux descargado → `.mp4` → VIDEO_MP4 (como antes).
+        // - Cualquier otra extension → VIDEO_MP4 (default historico).
+        val mimeType = when {
+            downloaded.filePath.endsWith(".ts", ignoreCase = true) ->
+                "application/x-mp2t"
+            else -> MimeTypes.VIDEO_MP4
+        }
+        val video = Video(
+            source = source,
+            subtitles = listOf(),
+            type = mimeType,
+            headers = null,
+        )
+        val offlineServer = Video.Server(
+            id = "offline",
+            name = "Descargado (${downloaded.language})",
+            src = source,
+        )
+        _state.emit(State.SuccessLoadingVideo(video, offlineServer))
+        return true
     }
 
     fun playEpisode(direction: Direction) {
@@ -100,6 +181,13 @@ class PlayerViewModel(
         lastVideoType = videoType
         lastId = id
         _state.emit(State.LoadingServers)
+
+        // WLFMOVIE Update 7: Si la pelicula esta descargada localmente, emitir el
+        // Video de file:// directamente sin llamar al provider. El progreso de
+        // reproduccion se guardara solo en `downloads.watchPositionMillis`.
+        if (tryEmitOfflineVideo(videoType, id)) {
+            return@launch
+        }
 
         val provider = UserPreferences.currentProvider
 

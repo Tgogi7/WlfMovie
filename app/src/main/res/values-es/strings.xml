@@ -504,4 +504,105 @@
     <string name="settings_parental_tmdb_disable_blocked">Debes desbloquear el control parental antes de desactivar TMDB.</string>
     <string name="settings_force_extra_buffer_title">Búfer extra global</string>
     <string name="settings_force_extra_buffer_summary">Activa búfer extra para todos los servidores de forma predeterminada</string>
+
+    <!-- WLFMOVIE Update 7: Descargas offline (peliculas Remux) -->
+    <string name="home_downloads">Descargas</string>
+    <string name="download_button">Descargar</string>
+    <string name="download_button_progress">Descargando %1$d%%</string>
+    <string name="download_button_progress_bytes">Descargando… %1$s</string>
+    <string name="download_button_progress_full">Descargando %1$d%% — %2$s</string>
+    <string name="download_button_done">Descargado</string>
+    <string name="download_button_offline">Ver sin conexión</string>
+    <string name="download_button_not_available">No disponible</string>
+    <string name="download_button_in_queue">Espera…</string>
+    <string name="download_already_active">Ya hay una descarga en curso. Espera a que termine antes de iniciar otra.</string>
+    <string name="download_offline_mode">Sin conexión a internet. Mostrando solo descargas.</string>
+    <string name="download_language_dialog_title">Descargar %1$s</string>
+    <string name="download_language_dialog_subtitle_singular">Solo disponible en %1$s</string>
+    <string name="download_language_dialog_choose_language">Elige un idioma:</string>
+    <string name="download_language_dialog_estimated_size">Tamaño aproximado: %1$s</string>
+    <string name="download_language_dialog_calculating_size">Calculando tamaño…</string>
+    <string name="download_language_dialog_cancel">Cancelar</string>
+    <string name="download_language_dialog_download">Descargar</string>
+    <string name="download_language_latino">Latino</string>
+    <string name="download_language_subtitulado">Subtitulado</string>
+    <string name="download_language_castellano">Castellano</string>
+    <string name="slow_link_warning_title">Descarga no disponible</string>
+    <string name="slow_link_warning_body">Esta película no tiene ningún servidor de descarga disponible en este momento (ni enlace rápido ni HLS). Puedes verla online.</string>
+    <string name="slow_link_warning_close">Cerrar</string>
+    <string name="slow_link_warning_watch_online">Ver online</string>
+    <string name="download_delete_dialog_title">Eliminar descarga</string>
+    <string name="download_delete_dialog_body">¿Eliminar la descarga de "%1$s"? Se borrará el archivo local.</string>
+    <string name="download_delete_dialog_cancel">Cancelar</string>
+    <string name="download_delete_dialog_delete">Eliminar</string>
+    <string name="download_deleted_toast">Descarga eliminada</string>
+    <!-- WLFMOVIE V6.3.1: Cancelar descarga (detiene la descarga en curso + borra archivos parciales) -->
+    <string name="download_cancel_dialog_title">Cancelar descarga</string>
+    <string name="download_cancel_dialog_body">¿Cancelar la descarga de "%1$s"? Se borrará todo lo descargado hasta ahora y se detendrá la operación.</string>
+    <string name="download_cancel_dialog_keep">Seguir descargando</string>
+    <string name="download_cancel_dialog_confirm">Cancelar y borrar</string>
+    <string name="download_cancelled_toast">Descarga cancelada — %1$s</string>
+    <!-- WLFMOVIE V6.3.1: Buscando servidores de descarga (estado del spinner en el botón) -->
+    <string name="download_button_searching">Buscando…</string>
+    <!-- WLFMOVIE V6.3.1: Botón de descarga ya completa (reemplaza "Descargado" en estado Completed) -->
+    <string name="download_button_completed">Ya descargada</string>
+
+    <!-- WLFMOVIE V6.3.2: UI de progreso en detalles (debajo de botones) -->
+    <!-- Texto del estado en la tarjeta de progreso. %1$s = MB descargados, %2$s = velocidad -->
+    <string name="download_inline_status">Descargando %1$s · %2$s</string>
+    <!-- Texto del estado cuando no hay velocidad (acaba de iniciar o conectando) -->
+    <string name="download_inline_status_starting">Iniciando descarga…</string>
+    <!-- Texto del estado cuando se detectó inactividad y el watchdog declaró stalled -->
+    <string name="download_inline_status_stalled">Descarga detenida — reintentando…</string>
+    <!-- Botón Cancelar dentro de la tarjeta de progreso -->
+    <string name="download_cancel_inline_button">Cancelar descarga</string>
+    <!-- Toast cuando el watchdog detecta inactividad y falla la descarga -->
+    <string name="download_stalled_toast">La descarga se detuvo sin progreso. Inténtalo de nuevo más tarde.</string>
+    <!-- WLFMOVIE V6.3.3: fase de guardado + intervenciones del watchdog + DMCA -->
+    <string name="download_inline_status_finalizing">Guardando película… %1$d%%</string>
+    <string name="download_inline_status_stalled_bytes">Descargando %1$s · reintentando…</string>
+    <string name="download_button_finalizing">Guardando… %1$d%%</string>
+    <string name="download_notification_finalizing">Guardando %1$d%% — %2$s de %3$s</string>
+    <string name="download_no_segments_toast">Ese servidor eliminó el archivo (DMCA). Prueba con otro idioma u otra película.</string>
+    <!-- WLFMOVIE V6.3.4: diálogo de selección de servidor + aviso offline simple -->
+    <string name="download_server_dialog_title">Elige un servidor</string>
+    <string name="download_server_dialog_title_retry">Ese servidor falló. Elige otro</string>
+    <string name="download_server_dialog_subtitle">%1$s · %2$d servidores disponibles</string>
+    <string name="download_server_dialog_hint">Si uno falla, volverás aquí para elegir otro</string>
+    <string name="download_failed_server_excluded">Servidor quitado de la lista solo por esta consulta</string>
+    <string name="loading_offline_title">Sin internet o el servidor no responde.\nConéctate para ver el catálogo.</string>
+    <string name="download_no_space_title">Espacio insuficiente</string>
+    <string name="download_no_space_body">Necesitas %1$s pero solo tienes %2$s libres. Elimina descargas antiguas para liberar espacio.</string>
+    <string name="download_no_space_ok">OK</string>
+    <string name="download_no_internet_title">Sin conexión a internet</string>
+    <string name="download_no_internet_body">Necesitas conexión a internet para buscar enlaces de descarga. Intenta más tarde.</string>
+    <string name="download_no_internet_ok">OK</string>
+    <string name="download_started_toast">Descarga iniciada: %1$s</string>
+    <string name="download_completed_toast">Descarga completada: %1$s</string>
+    <string name="download_failed_toast">Descarga fallida: %1$s</string>
+    <string name="download_notification_channel_name">Descargas</string>
+    <string name="download_notification_channel_desc">Progreso de descarga de películas</string>
+    <string name="download_notification_progress">Descargando %1$d%% — %2$s de %3$s</string>
+    <string name="download_notification_completed">Descarga completada — %1$s</string>
+    <string name="download_notification_failed">Descarga fallida — %1$s</string>
+    <string name="download_notification_cancel">Cancelar descarga</string>
+
+    <!-- WLFMOVIE V6.2: Crash handler + error collector -->
+    <string name="last_crash_dialog_title">La app se cerró inesperadamente</string>
+    <string name="last_crash_dialog_intro">WlfMovie se cerró la última vez por un error. Esto fue lo que capturamos:</string>
+    <string name="last_crash_dialog_view_all">Ver todos los errores</string>
+    <string name="last_crash_dialog_close">Cerrar</string>
+    <string name="last_crash_dialog_copy">Copiar</string>
+    <string name="last_crash_dialog_copied">Copiado al portapapeles</string>
+
+    <string name="debug_errors_button">Errores recopilados</string>
+    <string name="debug_errors_dialog_title">Errores recopilados (%1$d)</string>
+    <string name="debug_errors_empty">No hay errores recopilados.</string>
+    <string name="debug_errors_copy_all">Copiar todo</string>
+    <string name="debug_errors_clear">Borrar</string>
+    <string name="debug_errors_clear_confirm">¿Borrar todos los errores recopilados?</string>
+    <string name="debug_errors_clear_yes">Borrar</string>
+    <string name="debug_errors_clear_no">Cancelar</string>
+    <string name="debug_errors_clear_done">Errores borrados</string>
+    <string name="debug_errors_copied_toast">Copiado al portapapeles</string>
 </resources>

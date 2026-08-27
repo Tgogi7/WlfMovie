@@ -918,6 +918,15 @@ class TmdbProvider(override val language: String) : Provider {
                 }
 
                 coroutineScope {
+                    // WLFMOVIE V6.3.6: titulos alternativos (es-MX / es-CO / en) desde
+                    // TMDB para PELICULAS — se buscan en paralelo y solo se esperan
+                    // si el titulo es no matchea con nombre+año.
+                    val altTitlesDeferred = if (videoType is Video.Type.Movie) {
+                        async(Dispatchers.IO) {
+                            com.mew.wlfmovie.utils.TitleMatcher.searchTitlesFor(id, targetTitle)
+                        }
+                    } else null
+
                     val providers = listOf(
                         CuevanaEuProvider,
                         CineCalidadProvider,
@@ -940,10 +949,6 @@ class TmdbProvider(override val language: String) : Provider {
                             withTimeoutOrNull(timeoutMs) {
                                 try {
                                     val searchResults = provider.search(targetTitle, 1)
-                                    if (searchResults.isEmpty()) {
-                                        Log.d("WlfMovie", "[EMPTY] -> ${provider.name}")
-                                        return@withTimeoutOrNull emptyList<Video.Server>()
-                                    }
 
                                     Log.d("WlfMovie", "[RESULTS] -> ${provider.name}: ${searchResults.size} resultados = ${
                                         searchResults.take(3).joinToString {
@@ -951,7 +956,42 @@ class TmdbProvider(override val language: String) : Provider {
                                         }
                                     }")
 
-                                    val bestMatch = searchResults.firstOrNull { isMatch(it, targetTitle) }
+                                    // =================================================
+                                    // WLFMOVIE V6.3.6: matching con AÑO + titulos
+                                    // alternativos (solo PELICULAS; series intactas).
+                                    // =================================================
+                                    var targetYear: Int? = null
+                                    var found: AppAdapter.Item? = null
+                                    var matchedVia = targetTitle
+
+                                    if (videoType is Video.Type.Movie) {
+                                        targetYear = com.mew.wlfmovie.utils.TitleMatcher.parseYear(videoType.releaseDate)
+                                            ?: altTitlesDeferred?.await()?.year
+                                        found = com.mew.wlfmovie.utils.TitleMatcher.bestMatch(
+                                            searchResults, targetTitle, targetYear, moviesOnly = true,
+                                        )
+                                        if (found == null) {
+                                            // Titulos alternativos UNO POR UNO: es-MX -> es-CO -> en.
+                                            for (alt in altTitlesDeferred?.await()?.titles?.drop(1).orEmpty()) {
+                                                val altResults = try {
+                                                    provider.search(alt, 1)
+                                                } catch (e: Exception) {
+                                                    emptyList()
+                                                }
+                                                found = com.mew.wlfmovie.utils.TitleMatcher.bestMatch(
+                                                    altResults, alt, targetYear, moviesOnly = true,
+                                                )
+                                                if (found != null) {
+                                                    matchedVia = alt
+                                                    break
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        found = searchResults.firstOrNull { isMatch(it, targetTitle) }
+                                    }
+
+                                    val bestMatch = found
                                     val matchedId = when (bestMatch) {
                                         is Movie -> bestMatch.id
                                         is TvShow -> bestMatch.id
@@ -959,7 +999,7 @@ class TmdbProvider(override val language: String) : Provider {
                                     }
 
                                     if (matchedId == null) {
-                                        Log.d("WlfMovie", "[NO MATCH] -> ${provider.name}")
+                                        Log.d("WlfMovie", "[NO MATCH] -> ${provider.name}: ${searchResults.size} resultados, ninguno con titulo+año OK (target '$targetTitle' ${targetYear ?: '?'})")
                                         return@withTimeoutOrNull emptyList()
                                     }
 
@@ -968,7 +1008,7 @@ class TmdbProvider(override val language: String) : Provider {
                                         is TvShow -> bestMatch.title
                                         else -> ""
                                     }
-                                    Log.i("WlfMovie", "[MATCH] -> ${provider.name}: '$matchTitle'")
+                                    Log.i("WlfMovie", "[MATCH] -> ${provider.name}: '$matchTitle' via '$matchedVia' (${targetYear ?: '?'})")
 
                                     // =================================================================
                                     // Para episodios: navegar serie → season → episodio → servers
@@ -1184,6 +1224,14 @@ class TmdbProvider(override val language: String) : Provider {
         try {
             // Implementación con coroutineScope + Channel manual
             coroutineScope {
+            // WLFMOVIE V6.3.6: titulos alternativos (es-MX / es-CO / en) desde TMDB
+            // para PELICULAS — en paralelo; solo se esperan si hacen falta.
+            val altTitlesDeferred = if (videoType is Video.Type.Movie) {
+                async(Dispatchers.IO) {
+                    com.mew.wlfmovie.utils.TitleMatcher.searchTitlesFor(id, targetTitle)
+                }
+            } else null
+
             // Channel para recibir los resultados a medida que cada provider termina (12 providers + Gnula = 13)
             val channel = Channel<List<Video.Server>>(13)
 
@@ -1194,22 +1242,56 @@ class TmdbProvider(override val language: String) : Provider {
                     val result = withTimeoutOrNull(timeoutMs) {
                         try {
                             val searchResults = provider.search(targetTitle, 1)
-                            if (searchResults.isEmpty()) {
-                                emptyList<Video.Server>()
-                            } else {
-                                val bestMatch = searchResults.firstOrNull { isMatch(it, targetTitle) }
-                                val matchedId = when (bestMatch) {
-                                    is Movie -> bestMatch.id
-                                    is TvShow -> bestMatch.id
-                                    else -> null
+
+                            // =================================================
+                            // WLFMOVIE V6.3.6: matching con AÑO + titulos
+                            // alternativos (solo PELICULAS; series intactas).
+                            // =================================================
+                            var targetYear: Int? = null
+                            var found: AppAdapter.Item? = null
+                            var matchedVia = targetTitle
+
+                            if (videoType is Video.Type.Movie) {
+                                targetYear = com.mew.wlfmovie.utils.TitleMatcher.parseYear(videoType.releaseDate)
+                                    ?: altTitlesDeferred?.await()?.year
+                                found = com.mew.wlfmovie.utils.TitleMatcher.bestMatch(
+                                    searchResults, targetTitle, targetYear, moviesOnly = true,
+                                )
+                                if (found == null) {
+                                    // Titulos alternativos UNO POR UNO: es-MX -> es-CO -> en.
+                                    for (alt in altTitlesDeferred?.await()?.titles?.drop(1).orEmpty()) {
+                                        val altResults = try {
+                                            provider.search(alt, 1)
+                                        } catch (e: Exception) {
+                                            emptyList()
+                                        }
+                                        found = com.mew.wlfmovie.utils.TitleMatcher.bestMatch(
+                                            altResults, alt, targetYear, moviesOnly = true,
+                                        )
+                                        if (found != null) {
+                                            matchedVia = alt
+                                            break
+                                        }
+                                    }
                                 }
+                            } else {
+                                found = searchResults.firstOrNull { isMatch(it, targetTitle) }
+                            }
 
-                                if (matchedId == null) {
-                                    emptyList()
-                                } else {
-                                    Log.i("WlfMovie", "[STREAM MATCH] -> ${provider.name}")
+                            val bestMatch = found
+                            val matchedId = when (bestMatch) {
+                                is Movie -> bestMatch.id
+                                is TvShow -> bestMatch.id
+                                else -> null
+                            }
 
-                                    val finalId = if (videoType is Video.Type.Episode && bestMatch is TvShow) {
+                            if (matchedId == null) {
+                                Log.d("WlfMovie", "[STREAM NO MATCH] -> ${provider.name}: ${searchResults.size} resultados, ninguno con titulo+año OK (target '$targetTitle' ${targetYear ?: '?'})")
+                                emptyList()
+                            } else {
+                                Log.i("WlfMovie", "[STREAM MATCH] -> ${provider.name} via '$matchedVia' (${targetYear ?: '?'})")
+
+                                val finalId = if (videoType is Video.Type.Episode && bestMatch is TvShow) {
                                         val sn = targetSeason
                                         val en = targetEpisode
                                         if (sn != null && en != null) {
@@ -1219,13 +1301,13 @@ class TmdbProvider(override val language: String) : Provider {
 
                                     if (finalId == null) emptyList()
                                     else provider.getServers(finalId, videoType)
-                                }
                             }
                         } catch (e: Exception) {
-                            com.mew.wlfmovie.utils.DebugErrorCollector.logError(
-                                "TmdbProvider-${provider.name}",
-                                "Provider falló: ${e.message}",
-                                "title=$targetTitle"
+                            com.mew.wlfmovie.utils.CrashLogger.logError(
+                                tag = "TmdbProvider-${provider.name}",
+                                message = "Provider falló: ${e.message}",
+                                context = "title=$targetTitle",
+                                throwable = e,
                             )
                             emptyList()
                         }
@@ -1240,18 +1322,34 @@ class TmdbProvider(override val language: String) : Provider {
                 val timeoutMs = if (videoType is Video.Type.Episode) 25_000L else 15_000L
                 val result = withTimeoutOrNull(timeoutMs) {
                     try {
-                        GnulaProvider.searchServers(
+                        var gnulaServers = GnulaProvider.searchServers(
                             title = targetTitle,
                             isMovie = videoType is Video.Type.Movie,
                             seasonNum = targetSeason,
                             episodeNum = targetEpisode,
                         )
+                        // WLFMOVIE V6.3.6: si es PELICULA y no encontro nada con el
+                        // titulo es, reintentar con los titulos alternativos.
+                        if (gnulaServers.isEmpty() && videoType is Video.Type.Movie) {
+                            for (alt in altTitlesDeferred?.await()?.titles?.drop(1).orEmpty()) {
+                                gnulaServers = GnulaProvider.searchServers(
+                                    title = alt,
+                                    isMovie = true,
+                                )
+                                if (gnulaServers.isNotEmpty()) {
+                                    Log.i("WlfMovie", "[GNULA MATCH-ALT] -> '$alt'")
+                                    break
+                                }
+                            }
+                        }
+                        gnulaServers
                     } catch (e: Exception) {
                         Log.e("WlfMovie", "[GNULA ERROR] -> ${e.message}")
-                        com.mew.wlfmovie.utils.DebugErrorCollector.logError(
-                            "GnulaProvider",
-                            "Gnula falló: ${e.message}",
-                            "title=$targetTitle"
+                        com.mew.wlfmovie.utils.CrashLogger.logError(
+                            tag = "GnulaProvider",
+                            message = "Gnula falló: ${e.message}",
+                            context = "title=$targetTitle",
+                            throwable = e,
                         )
                         emptyList()
                     }
@@ -1294,11 +1392,11 @@ class TmdbProvider(override val language: String) : Provider {
             }
         } catch (e: Exception) {
             Log.e("WlfMovie", "[STREAM ERROR] -> ${e.message}")
-            com.mew.wlfmovie.utils.DebugErrorCollector.logError(
-                "TmdbProvider",
-                "Error en getServersFlow: ${e.message}",
-                "title=$targetTitle, videoType=$videoType",
-                e
+            com.mew.wlfmovie.utils.CrashLogger.logError(
+                tag = "TmdbProvider",
+                message = "Error en getServersFlow: ${e.message}",
+                context = "title=$targetTitle, videoType=$videoType",
+                throwable = e,
             )
             emit(collectedServers.toList())
         }

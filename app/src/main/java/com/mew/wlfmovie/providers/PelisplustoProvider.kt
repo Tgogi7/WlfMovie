@@ -151,22 +151,30 @@ object PelisplustoProvider : Provider {
         return elements.mapNotNull {
             val url = it.attr("href")
             val posterUrl = it.selectFirst("img")?.attr("data-src") ?: ""
-            val title = it.selectFirst("h2")?.text()?.substringBefore(" (") ?: return@mapNotNull null
+            // WLFMOVIE V6.3.6: el h2 trae "Titulo (2024)" — antes el año se
+            // descartaba con el substringBefore y el matcher no podia validar
+            // la pelicula correcta. Ahora se rescatan titulo Y año.
+            val rawTitle = it.selectFirst("h2")?.text() ?: return@mapNotNull null
+            val title = rawTitle.substringBefore(" (")
+            val year = Regex("\\((19|20)\\d{2}\\)").find(rawTitle)?.value?.filter { ch -> ch.isDigit() }
 
             when {
                 url.contains("/pelicula/") -> Movie(
                     id = url.substringAfter("/pelicula/").removeSuffix("/"),
                     title = title,
+                    released = year,
                     poster = posterUrl
                 )
                 url.contains("/serie/") -> TvShow(
                     id = url.substringAfter("/serie/").removeSuffix("/"),
                     title = title,
+                    released = year,
                     poster = posterUrl
                 )
                 url.contains("/anime/") -> TvShow(
                     id = "anime/${url.substringAfter("/anime/").removeSuffix("/")}",
                     title = title,
+                    released = year,
                     poster = posterUrl
                 )
                 else -> null

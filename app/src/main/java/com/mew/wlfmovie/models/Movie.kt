@@ -72,6 +72,18 @@ class Movie(
     @Ignore
     override lateinit var itemType: AppAdapter.Type
 
+    /**
+     * WLFMOVIE Update 7: Flag transitorio (NO persistido en Room) que indica si este
+     * objeto Movie representa una pelicula descargada localmente. Lo marca el
+     * HomeViewModel al construir la categoria "Downloads" para que el ViewHolder
+     * distinga click (ir al player offline) de long-press (borrar descarga).
+     *
+     * NOTA: no se incluye en equals/hashCode porque es un flag de UI transitorio,
+     * no identidad de la pelicula.
+     */
+    @Ignore
+    var isFromDownloads: Boolean = false
+
 
     fun copy(
         id: String = this.id,

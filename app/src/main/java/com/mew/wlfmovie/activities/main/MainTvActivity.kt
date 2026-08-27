@@ -58,6 +58,28 @@ class MainTvActivity : FragmentActivity() {
             com.mew.wlfmovie.utils.SyncManager.autoDownloadIfNewer(this@MainTvActivity)
         }
 
+        // WLFMOVIE V6.2: Mostrar el LastCrashDialog si hubo un crash fatal
+        // en la ejecucion anterior y el usuario aun no lo ha visto.
+        // Solo en DEBUG — en release no se persisten crashes ni se muestran
+        // popups al usuario final.
+        if (com.mew.wlfmovie.BuildConfig.DEBUG) {
+            try {
+                if (com.mew.wlfmovie.utils.CrashLogger.hasUnreadCrash()) {
+                    com.mew.wlfmovie.ui.LastCrashDialog.show(
+                        context = this,
+                        onViewAll = {
+                            val count = com.mew.wlfmovie.utils.CrashLogger.count()
+                            val text = com.mew.wlfmovie.utils.CrashLogger.getErrorsAsText()
+                            showCollectedErrorsDialog(count, text)
+                        },
+                        onDismiss = { /* no-op */ },
+                    )
+                }
+            } catch (t: Throwable) {
+                Log.e("WlfMovie-App", "No se pudo mostrar LastCrashDialog", t)
+            }
+        }
+
         // WLFMOVIE: Forzar TMDB (es) como provider al arranque.
         // No importa lo que el user tenia guardado — siempre TMDB.
         if (UserPreferences.currentProvider == null) {
@@ -270,5 +292,49 @@ class MainTvActivity : FragmentActivity() {
                 }
             )
         }
+    }
+
+    /**
+     * WLFMOVIE V6.2: Dialogo completo del recopilador de errores (TV).
+     * Botones: Copiar todo / Borrar / Cerrar.
+     */
+    private fun showCollectedErrorsDialog(count: Int, fullText: String) {
+        val message = if (count == 0) {
+            getString(R.string.debug_errors_empty)
+        } else {
+            getString(R.string.debug_errors_dialog_title, count) + "\n\n" +
+                fullText.take(20_000)
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.debug_errors_dialog_title, count))
+            .setMessage(message)
+            .setPositiveButton(R.string.debug_errors_clear) { _, _ ->
+                android.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.debug_errors_clear_confirm)
+                    .setPositiveButton(R.string.debug_errors_clear_yes) { _, _ ->
+                        com.mew.wlfmovie.utils.CrashLogger.clear()
+                        android.widget.Toast.makeText(
+                            this,
+                            R.string.debug_errors_clear_done,
+                            android.widget.Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                    .setNegativeButton(R.string.debug_errors_clear_no, null)
+                    .show()
+            }
+            .setNegativeButton(R.string.debug_errors_copy_all) { _, _ ->
+                val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                    as android.content.ClipboardManager
+                clipboard.setPrimaryClip(
+                    android.content.ClipData.newPlainText("WlfMovie Errors", fullText)
+                )
+                android.widget.Toast.makeText(
+                    this,
+                    R.string.debug_errors_copied_toast,
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+            .setNeutralButton(android.R.string.cancel, null)
+            .show()
     }
 }

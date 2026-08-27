@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE V6.3.4: Diálogo de selección de servidor para descarga.
+  Se muestra después de elegir idioma, cuando ese idioma tiene MÁS de 1
+  servidor disponible. Mismo estilo on-brand que dialog_download_language.
+
+  IDs:
+    - tv_dialog_title          → título ("Elige un servidor")
+    - tv_dialog_subtitle       → texto "Latino · 3 servidores disponibles"
+    - rv_servers               → RecyclerView con los servidores
+    - tv_dialog_hint           → "Si uno falla, volverás aquí para elegir otro"
+    - btn_cancel               → botón Cancelar
+    - btn_download             → botón Descargar
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="24dp"
+    android:background="@drawable/wlf_bg_dialog"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <!-- Icono -->
+    <ImageView
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="center"
+        android:layout_marginBottom="12dp"
+        android:src="@drawable/wlf_ic_download"
+        android:tint="@color/wlf_fuchsia_neon"
+        tools:ignore="UseAppTint" />
+
+    <!-- Título -->
+    <TextView
+        android:id="@+id/tv_dialog_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        tools:text="Elige un servidor" />
+
+    <!-- Subtítulo: idioma + cantidad de servidores -->
+    <TextView
+        android:id="@+id/tv_dialog_subtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:gravity="center"
+        android:textColor="@color/wlf_text_secondary"
+        android:textSize="13sp"
+        android:textStyle="italic"
+        tools:text="Latino · 3 servidores disponibles" />
+
+    <!-- Lista de servidores (filas custom, single-choice) -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_servers"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:nestedScrollingEnabled="false"
+        android:overScrollMode="never" />
+
+    <!-- Hint de reintento -->
+    <TextView
+        android:id="@+id/tv_dialog_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
+        android:text="@string/download_server_dialog_hint"
+        android:textColor="@color/wlf_text_secondary"
+        android:textSize="12sp" />
+
+    <!-- Botones -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:orientation="horizontal">
+
+        <!-- Cancelar -->
+        <TextView
+            android:id="@+id/btn_cancel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/wlf_bg_secondary_button_details"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:padding="14dp"
+            android:text="@string/download_language_dialog_cancel"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <!-- Descargar (deshabilitado hasta que se elija servidor) -->
+        <TextView
+            android:id="@+id/btn_download"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:alpha="0.4"
+            android:background="@drawable/wlf_bg_play_button_details"
+            android:clickable="true"
+            android:enabled="false"
+            android:focusable="true"
+            android:gravity="center"
+            android:padding="14dp"
+            android:text="@string/download_language_dialog_download"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</LinearLayout>

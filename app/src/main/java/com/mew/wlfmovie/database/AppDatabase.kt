@@ -7,10 +7,12 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.mew.wlfmovie.database.dao.DownloadDao
 import com.mew.wlfmovie.database.dao.EpisodeDao
 import com.mew.wlfmovie.database.dao.MovieDao
 import com.mew.wlfmovie.database.dao.SeasonDao
 import com.mew.wlfmovie.database.dao.TvShowDao
+import com.mew.wlfmovie.models.DownloadedMovie
 import com.mew.wlfmovie.models.Episode
 import com.mew.wlfmovie.models.Movie
 import com.mew.wlfmovie.models.Season
@@ -23,8 +25,9 @@ import com.mew.wlfmovie.utils.UserPreferences
         Movie::class,
         Season::class,
         TvShow::class,
+        DownloadedMovie::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -37,6 +40,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun seasonDao(): SeasonDao
 
     abstract fun episodeDao(): EpisodeDao
+
+    abstract fun downloadDao(): DownloadDao
 
     companion object {
 
@@ -104,6 +109,7 @@ abstract class AppDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_5_6)
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
+                .addMigrations(MIGRATION_8_9)
                 .build()
         }
 
@@ -180,6 +186,31 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // No SQL changes needed as indices were already created in previous migrations 
                 // but are now formally declared in Entity classes, requiring a version bump.
+            }
+        }
+
+        // WLFMOVIE Update 7: Tabla local `downloads` para descargas offline de peliculas.
+        // Tabla aislada del sync de nube (SyncManager nunca la toca).
+        private val MIGRATION_8_9: Migration = object : Migration(8, 9) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS downloads (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        poster TEXT,
+                        banner TEXT,
+                        filePath TEXT NOT NULL,
+                        fileSizeBytes INTEGER NOT NULL,
+                        durationMillis INTEGER NOT NULL DEFAULT 0,
+                        watchPositionMillis INTEGER NOT NULL DEFAULT 0,
+                        downloadedAtMillis INTEGER NOT NULL,
+                        language TEXT NOT NULL,
+                        serverName TEXT NOT NULL,
+                        sourceUrl TEXT NOT NULL,
+                        headersJson TEXT NOT NULL,
+                        isWatched INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
             }
         }
     }

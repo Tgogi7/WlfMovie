@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE V6.3.1: Fila de opción de idioma para el diálogo de descarga.
+  Single-choice: el radio indicator a la derecha se rellena con fucsia
+  cuando la fila está seleccionada.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/row_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?android:attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="12dp">
+
+    <!-- Label del idioma (Latino / Subtitulado / Castellano) -->
+    <TextView
+        android:id="@+id/tv_language_label"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        tools:text="Latino" />
+
+    <!-- Indicador de selección (radio dot custom) -->
+    <ImageView
+        android:id="@+id/iv_selected"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:layout_marginStart="12dp"
+        android:contentDescription="@null"
+        android:src="@drawable/wlf_ic_radio_indicator" />
+
+</LinearLayout>

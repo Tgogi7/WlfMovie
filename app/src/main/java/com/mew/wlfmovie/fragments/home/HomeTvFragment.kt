@@ -31,6 +31,12 @@ class HomeTvFragment : Fragment() {
 
     private var hasAutoCleared409: Boolean = false
 
+    /**
+     * WLFMOVIE V6.3.1: Solo mostrar el toast "Sin conexion, mostrando
+     * solo descargas" una vez por sesion offline (mirror del mobile).
+     */
+    private var hasShownOfflineToast: Boolean = false
+
     private var _binding: FragmentHomeTvBinding? = null
     private val binding get() = _binding!!
 
@@ -78,11 +84,37 @@ class HomeTvFragment : Fragment() {
                         root.visibility = View.VISIBLE
                         pbIsLoading.visibility = View.VISIBLE
                         gIsLoadingRetry.visibility = View.GONE
+                        tvIsLoadingOffline.visibility = View.GONE
                     }
                     is HomeViewModel.State.SuccessLoading -> {
                         displayHome(state.categories)
                         binding.vgvHome.visibility = View.VISIBLE
                         binding.isLoading.root.visibility = View.GONE
+                    }
+                    // WLFMOVIE V6.3.4: sin internet / TMDB caido y SIN descargas.
+                    // Aviso simple, sin botones (mirror del mobile).
+                    HomeViewModel.State.OfflineNoDownloads -> binding.isLoading.apply {
+                        root.visibility = View.VISIBLE
+                        pbIsLoading.visibility = View.GONE
+                        gIsLoadingRetry.visibility = View.GONE
+                        tvIsLoadingOffline.visibility = View.VISIBLE
+                        binding.vgvHome.visibility = View.GONE
+                    }
+                    // WLFMOVIE V6.3.1: Sin internet pero hay descargas.
+                    // Mostramos solo la categoria Downloads + toast informativo.
+                    // NO mostramos la pantalla de error (mirror del mobile).
+                    is HomeViewModel.State.OfflineWithDownloads -> {
+                        displayHome(state.categories)
+                        binding.vgvHome.visibility = View.VISIBLE
+                        binding.isLoading.root.visibility = View.GONE
+                        if (!hasShownOfflineToast) {
+                            hasShownOfflineToast = true
+                            Toast.makeText(
+                                requireContext(),
+                                getString(com.mew.wlfmovie.R.string.download_offline_mode),
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
                     }
                     is HomeViewModel.State.FailedLoading -> {
                         val code = (state.error as? retrofit2.HttpException)?.code()
@@ -105,6 +137,7 @@ class HomeTvFragment : Fragment() {
                         binding.isLoading.apply {
                             pbIsLoading.visibility = View.GONE
                             gIsLoadingRetry.visibility = View.VISIBLE
+                            tvIsLoadingOffline.visibility = View.GONE
                             btnIsLoadingRetry.setOnClickListener { viewModel.getHome() }
                             btnIsLoadingClearCache.setOnClickListener {
                                 CacheUtils.clearAppCache(requireContext())

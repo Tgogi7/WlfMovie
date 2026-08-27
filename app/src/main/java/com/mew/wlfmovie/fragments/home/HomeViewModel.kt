@@ -7,9 +7,11 @@ import androidx.lifecycle.viewModelScope
 import com.mew.wlfmovie.adapters.AppAdapter
 import com.mew.wlfmovie.database.AppDatabase
 import com.mew.wlfmovie.models.Category
+import com.mew.wlfmovie.models.DownloadedMovie
 import com.mew.wlfmovie.models.Episode
 import com.mew.wlfmovie.models.Movie
 import com.mew.wlfmovie.models.TvShow
+import com.mew.wlfmovie.models.WatchItem
 import com.mew.wlfmovie.providers.AnimeOnlineNinjaProvider
 import com.mew.wlfmovie.providers.Provider
 import com.mew.wlfmovie.ui.UserDataNotifier
@@ -38,6 +40,13 @@ import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * WLFMOVIE Update 7: Clave interna de la categoria "Downloads".
+ * Se renombra a R.string.home_downloads en HomeMobileFragment.displayHome
+ * antes de que se renderice.
+ */
+private const val DOWNLOADS_CATEGORY_KEY = "Downloads"
+
 class HomeViewModel(database: AppDatabase) : ViewModel() {
 
     private fun <T> preserveCacheOrder(
@@ -61,7 +70,12 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val state: Flow<State> = combine(
-        _state,
+        // WLFMOVIE Update 7: empaquetamos el estado y la lista de descargas locales
+        // en un Pair para no tener que extender la aridad del combine externo.
+        combine(
+            _state,
+            database.downloadDao().getAllAsFlow().flowOn(Dispatchers.IO),
+        ) { s, dls -> s to dls },
 
         // CONTINUE WATCHING - Cache-first (faster on slow DB devices), falls back to DB
         combine(
@@ -188,7 +202,10 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
             }
         }.flowOn(Dispatchers.IO),
 
-        ) { state, continueWatching, favoritesMovies, favoriteTvShows, moviesDb, tvShowsDb ->
+        ) { stateAndDownloads, continueWatching, favoritesMovies, favoriteTvShows, moviesDb, tvShowsDb ->
+
+        val state = stateAndDownloads.first
+        val downloads = stateAndDownloads.second
 
         when (state) {
             is State.SuccessLoading -> {
@@ -212,7 +229,7 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
                     }
                 }
 
-                // WLFMOVIE: Construir lista completa y ordenar TODA junta
+                // WLFMOVIE Update 7: Construir lista completa y ordenar TODA junta
                 val continueWatchingCategory = Category(
                     name = Category.CONTINUE_WATCHING,
                     list = continueWatching
@@ -238,7 +255,32 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
                         },
                 )
 
-                val allCategories = listOfNotNull(continueWatchingCategory) +
+                // WLFMOVIE Update 7: Categoria "Downloads" (aislada del sync).
+                // Items marcados con isFromDownloads = true para que el ViewHolder
+                // distinga click (ir al player offline) de long-press (borrar).
+                val downloadMovies: List<AppAdapter.Item> = downloads.map { d ->
+                    Movie(
+                        id = d.id,
+                        title = d.title,
+                        poster = d.poster,
+                        banner = d.banner,
+                    ).apply {
+                        isFromDownloads = true
+                        if (d.durationMillis > 0L) {
+                            watchHistory = WatchItem.WatchHistory(
+                                lastEngagementTimeUtcMillis = d.downloadedAtMillis,
+                                lastPlaybackPositionMillis = d.watchPositionMillis,
+                                durationMillis = d.durationMillis,
+                            )
+                        }
+                        isWatched = d.isWatched
+                    } as AppAdapter.Item
+                }
+                val downloadCategory = if (downloadMovies.isNotEmpty()) {
+                    Category(name = DOWNLOADS_CATEGORY_KEY, list = downloadMovies)
+                } else null
+
+                val allCategories = listOfNotNull(continueWatchingCategory, downloadCategory) +
                     state.categories
                         .filter { category ->
                             category.name != Category.FEATURED &&
@@ -250,34 +292,49 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
                             !category.name.contains("HBO")
                         }
 
-                val categories = ParentalControlUtils.filterCategories(
-                    allCategories
-                        .sortedWith { a, b ->
-                            fun priority(name: String): Int = when {
-                                name.contains("TV Shows", true) ||
-                                name.contains("Series", true) && !name.contains("Top") -> 1
-                                name.contains("Movies", true) ||
-                                name.contains("Películas", true) && !name.contains("Top") -> 2
-                                name == Category.CONTINUE_WATCHING -> 3
-                                name.contains("Trending", true) ||
-                                name.contains("Tendencias", true) -> 4
-                                name.contains("Anime", true) -> 5
-                                name.contains("Top 10", true) -> 6
-                                name.contains("Acción", true) ||
-                                name.contains("Comedia", true) ||
-                                name.contains("Terror", true) -> 7
-                                else -> 8
-                            }
-                            priority(a.name).compareTo(priority(b.name))
+                // WLFMOVIE Update 7: mergeItem NO se aplica a la categoria Downloads
+                // (las Movies son sinteticas y NO deben mergearse con el estado de movies
+                // table, porque eso sobreescribiria watchHistory/isFromDownloads).
+                val mergedCategories = allCategories
+                    .sortedWith { a, b ->
+                        fun priority(name: String): Int = when {
+                            name.contains("TV Shows", true) ||
+                            name.contains("Series", true) && !name.contains("Top") -> 1
+                            name.contains("Movies", true) ||
+                            name.contains("Películas", true) && !name.contains("Top") -> 2
+                            name == Category.CONTINUE_WATCHING -> 3
+                            name == DOWNLOADS_CATEGORY_KEY -> 3
+                            name.contains("Trending", true) ||
+                            name.contains("Tendencias", true) -> 4
+                            name.contains("Anime", true) -> 5
+                            name.contains("Top 10", true) -> 6
+                            name.contains("Acción", true) ||
+                            name.contains("Comedia", true) ||
+                            name.contains("Terror", true) -> 7
+                            else -> 8
                         }
-                        .map { category ->
+                        priority(a.name).compareTo(priority(b.name))
+                    }
+                    .map { category ->
+                        if (category.name == DOWNLOADS_CATEGORY_KEY) {
+                            category
+                        } else {
                             category.copy(
                                 list = category.list.map(::mergeItem)
                             )
                         }
-                )
+                    }
 
-                State.SuccessLoading(categories)
+                // WLFMOVIE Update 7: ParentalControl NO filtra la categoria Downloads
+                // (son archivos del usuario local, no se filtran por control parental).
+                val (downloadCats, nonDownloadCats) = mergedCategories.partition { it.name == DOWNLOADS_CATEGORY_KEY }
+                val filteredNonDownloads = ParentalControlUtils.filterCategories(nonDownloadCats)
+                val finalCategories = mergedCategories.map { category ->
+                    if (category.name == DOWNLOADS_CATEGORY_KEY) category
+                    else filteredNonDownloads.find { it.name == category.name } ?: category
+                }
+
+                State.SuccessLoading(finalCategories)
             }
 
             else -> state
@@ -288,6 +345,29 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
         data object Loading : State()
         data class SuccessLoading(val categories: List<Category>) : State()
         data class FailedLoading(val error: Exception) : State()
+
+        /**
+         * WLFMOVIE V6.3.1: El provider fallo con un error de red (sin
+         * internet, DNS caido, etc.) PERO hay descargas locales. En lugar
+         * de mostrar la pantalla de error, mostramos solo la categoria
+         * Downloads para que el usuario pueda ver offline. Acompanado de
+         * un toast "Sin conexion, mostrando solo descargas".
+         *
+         * WLFMOVIE V6.3.4: ya NO limitado a errores de red — si TMDB no
+         * responde por cualquier motivo y no hay cache, tambien cae aqui
+         * (el usuario pidio no ver la pantalla de error NUNCA en el home
+         * cuando hay descargas para ver offline).
+         */
+        data class OfflineWithDownloads(val categories: List<Category>) : State()
+
+        /**
+         * WLFMOVIE V6.3.4: Sin internet / TMDB no responde y NO hay descargas.
+         * La UI muestra un aviso simple ("Sin internet o el servidor no
+         * responde") SIN botones de Reintentar / Vaciar cache / Detalles
+         * del error — el usuario pidio exactamente eso: "solo dirá que el
+         * servidor no responde o sin internet y nada más".
+         */
+        data object OfflineNoDownloads : State()
     }
 
     init {
@@ -387,15 +467,68 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
 
         loadUserDataCache(provider)
 
+        // WLFMOVIE V6.3.4: reparar artwork offline de descargas antiguas
+        // (rows con URLs remotas de TMDB en poster/banner). Fire-and-forget:
+        // cuando termine, Room re-emite el Flow y el home se refresca solo
+        // con las caratulas locales. Con flag interna para correr 1 vez por
+        // sesion (o reintentar si fallo por falta de red).
+        com.mew.wlfmovie.download.MovieDownloadManager
+            .backfillDownloadedArtworkIfNeeded(appContext)
+
         try {
             val categories = provider.getHome()
             HomeCacheStore.write(appContext, provider, categories)
             _state.emit(State.SuccessLoading(categories))
         } catch (e: Exception) {
             Log.e("HomeViewModel", "getHome: ", e)
+            // WLFMOVIE V6.3.4: sin cache + fallo del provider (sea sin internet,
+            // DNS caido O TMDB caido/error) → NUNCA mas pantalla de error:
+            //  - Si hay descargas locales → mostrar SOLO la categoria Downloads
+            //    (el usuario reproduce offline).
+            //  - Si no hay → aviso simple "sin internet o el servidor no
+            //    responde", sin botones de Reintentar/Vaciar cache/Detalles.
+            //
+            // (V6.3.1 solo cubria errores de red; el usuario reporto que con
+            // TMDB caido a veces igual aparecia "Ha ocurrido un error".)
             if (cachedCategories.isNullOrEmpty()) {
-                _state.emit(State.FailedLoading(e))
+                val downloads = AppDatabase.getInstance(appContext)
+                    .downloadDao().getAll()
+                    .filter { java.io.File(it.filePath).exists() }
+                if (downloads.isNotEmpty()) {
+                    val downloadMovies: List<AppAdapter.Item> = downloads.map { d ->
+                        Movie(
+                            id = d.id,
+                            title = d.title,
+                            poster = d.poster,
+                            banner = d.banner,
+                        ).apply {
+                            isFromDownloads = true
+                            if (d.durationMillis > 0L) {
+                                watchHistory = WatchItem.WatchHistory(
+                                    lastEngagementTimeUtcMillis = d.downloadedAtMillis,
+                                    lastPlaybackPositionMillis = d.watchPositionMillis,
+                                    durationMillis = d.durationMillis,
+                                )
+                            }
+                            isWatched = d.isWatched
+                        } as AppAdapter.Item
+                    }
+                    val offlineCategory = Category(
+                        name = DOWNLOADS_CATEGORY_KEY,
+                        list = downloadMovies,
+                    )
+                    // Emitimos un estado especial para que HomeMobileFragment
+                    // muestre la categoria Downloads + un toast "Sin conexion,
+                    // mostrando solo descargas".
+                    _state.emit(State.OfflineWithDownloads(listOf(offlineCategory)))
+                    return@launch
+                }
+                _state.emit(State.OfflineNoDownloads)
+                return@launch
             }
+            // Si hay cache, el estado ya quedo en SuccessLoading con las
+            // categorias cacheadas — no emitimos error (comportamiento
+            // previo y correcto: la cache sirve de modo offline parcial).
         }
     }
 

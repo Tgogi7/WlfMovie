@@ -72,6 +72,19 @@ object RemotePlayController {
         RemotePlayState.currentVideoType = videoType
         RemotePlayState.currentPosition = position
         RemotePlayState.currentDuration = duration
+
+        // WLFMOVIE V6.4: Detectar archivo LOCAL (pelicula descargada, file://).
+        // En modo local el server NO retransmite: sirve el archivo del disco
+        // por la LAN (funciona sin internet, ej: hotspot) y el progreso se
+        // guarda SOLO en la tabla `downloads` — sin nube, sin continue watching.
+        val isLocalFile = video.source.startsWith("file://")
+        RemotePlayState.isLocalFile = isLocalFile
+        RemotePlayState.localFilePath = if (isLocalFile) video.source.removePrefix("file://") else null
+        RemotePlayState.downloadId = if (isLocalFile) (videoType as? Video.Type.Movie)?.id else null
+        if (isLocalFile) {
+            Log.i(TAG, "start: modo LOCAL (descarga) — archivo=${RemotePlayState.localFilePath}, downloadId=${RemotePlayState.downloadId}")
+        }
+
         RemotePlayState.setState(RemotePlayState.ConnectionState.STARTING)
 
         // Arrancar el service foreground (notificación + wakelock)
@@ -217,6 +230,11 @@ object RemotePlayController {
         lastSavedIsPlaying = isPlaying
         controllerScope.launch {
             savePosition(position, duration, isPlaying)
+            // WLFMOVIE V6.4: en modo local (descarga) NO se sube nada a la nube
+            // — el plan exige aislamiento total del sync (y puede no haber internet).
+            if (RemotePlayState.isLocalFile) {
+                return@launch
+            }
             // CRÍTICO: Subir a la nube después de guardar localmente.
             // Sin esto, el cache local se actualiza pero la nube nunca se entera.
             // (Esto es lo que hacía el player local en saveWatchProgress)
@@ -240,6 +258,10 @@ object RemotePlayController {
         if (position > 0 && duration > 0) {
             controllerScope.launch {
                 savePosition(position, duration, isPlaying)
+                // WLFMOVIE V6.4: en modo local nada de nube.
+                if (RemotePlayState.isLocalFile) {
+                    return@launch
+                }
                 // Subir a la nube también al hacer stop
                 try {
                     val ctx = appContext ?: return@launch
@@ -270,6 +292,17 @@ object RemotePlayController {
     private suspend fun savePosition(position: Long, duration: Long, isPlaying: Boolean) {
         try {
             val ctx = appContext ?: return
+
+            // WLFMOVIE V6.4: Modo LOCAL (pelicula descargada) — guardar SOLO en
+            // la tabla `downloads` (watchPositionMillis / durationMillis / isWatched).
+            // NO se toca movies/episodes, NO UserDataCache, NO continue watching,
+            // NO SyncManager — aislamiento total del sync, igual que el player
+            // offline del celular (saveOfflineWatchProgress).
+            if (RemotePlayState.isLocalFile) {
+                saveLocalDownloadPosition(position, duration)
+                return
+            }
+
             val videoType = RemotePlayState.currentVideoType ?: return
             val provider = UserPreferences.currentProvider ?: return
             val database = AppDatabase.getInstance(ctx)
@@ -354,6 +387,29 @@ object RemotePlayController {
             }
         } catch (e: Exception) {
             Log.e(TAG, "savePosition: error", e)
+        }
+    }
+
+    /**
+     * WLFMOVIE V6.4: Guarda el progreso de una pelicula DESCARGADA vista en el
+     * PC — solo en la tabla local `downloads`. Mismo criterio de "terminada"
+     * que el player offline del celular (posición >= duración - 10s).
+     */
+    private suspend fun saveLocalDownloadPosition(position: Long, duration: Long) {
+        try {
+            val ctx = appContext ?: return
+            val downloadId = RemotePlayState.downloadId ?: return
+            if (position <= 0L || duration <= 0L) return
+            val isWatched = position >= (duration - 10_000L)
+            AppDatabase.getInstance(ctx).downloadDao().updateProgress(
+                id = downloadId,
+                position = position,
+                duration = duration,
+                isWatched = isWatched,
+            )
+            Log.i(TAG, "saveLocalDownloadPosition: download=$downloadId pos=$position/$duration watched=$isWatched (solo local, sin sync)")
+        } catch (e: Exception) {
+            Log.e(TAG, "saveLocalDownloadPosition: error", e)
         }
     }
 

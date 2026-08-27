@@ -106,12 +106,18 @@ object CineHaxProvider : Provider {
         val poster = optString("poster_path").takeIf { it.isNotEmpty() }?.let { "$TMDB_IMAGE_BASE$it" }
         val backdrop = optString("backdrop_path").takeIf { it.isNotEmpty() }?.let { "$TMDB_IMAGE_BASE$it" }
         val overview = optString("overview").takeIf { it.isNotEmpty() }
+        // WLFMOVIE V6.3.6: el live-search es un proxy de TMDB y trae la fecha
+        // (release_date para peliculas, first_air_date para series). Antes se
+        // ignoraba y el matcher no podia validar el año de la pelicula.
+        val releaseDate = optString("release_date").ifEmpty { optString("first_air_date") }
+            .takeIf { it.isNotEmpty() }
 
         return if (isTv) {
             TvShow(
                 id = id.toString(),
                 title = optString("name").ifEmpty { optString("title") },
                 overview = overview,
+                released = releaseDate,
                 poster = poster,
                 banner = backdrop,
             )
@@ -120,6 +126,7 @@ object CineHaxProvider : Provider {
                 id = id.toString(),
                 title = optString("title").ifEmpty { optString("name") },
                 overview = overview,
+                released = releaseDate,
                 poster = poster,
                 banner = backdrop,
             )

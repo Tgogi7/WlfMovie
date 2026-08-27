@@ -44,41 +44,53 @@ class SettingsMobileFragment : Fragment() {
         Glide.with(this).load(R.drawable.ic_wlfmovie_logo).into(binding.ivSettingsLogo)
         binding.tvSettingsVersion.text = "Versión ${BuildConfig.VERSION_NAME}"
 
-        // WLFMOVIE V6.1: Debug error collector (solo en debug)
+        // WLFMOVIE V6.2: Recopilador de errores. Visible SOLO en DEBUG.
+        // En release no hay ni crash logger ni dialogo — el build oficial queda
+        // limpio para el usuario final.
         if (BuildConfig.DEBUG) {
             binding.btnSettingsDebugErrors.visibility = View.VISIBLE
+            binding.btnSettingsDebugErrors.text = getString(R.string.debug_errors_button)
             binding.btnSettingsDebugErrors.setOnClickListener {
-                val errors = com.mew.wlfmovie.utils.DebugErrorCollector.getErrors()
-                if (errors.isEmpty()) {
-                    Toast.makeText(requireContext(), "No hay errores registrados", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
+            val count = com.mew.wlfmovie.utils.CrashLogger.count()
+            val fullText = com.mew.wlfmovie.utils.CrashLogger.getErrorsAsText()
+            val message = if (count == 0) {
+                getString(R.string.debug_errors_empty)
+            } else {
+                getString(R.string.debug_errors_dialog_title, count) + "\n\n" +
+                    fullText.take(20_000)
+            }
+            android.app.AlertDialog.Builder(requireContext())
+                .setTitle(getString(R.string.debug_errors_dialog_title, count))
+                .setMessage(message)
+                .setPositiveButton(R.string.debug_errors_clear) { _, _ ->
+                    android.app.AlertDialog.Builder(requireContext())
+                        .setTitle(R.string.debug_errors_clear_confirm)
+                        .setPositiveButton(R.string.debug_errors_clear_yes) { _, _ ->
+                            com.mew.wlfmovie.utils.CrashLogger.clear()
+                            Toast.makeText(
+                                requireContext(),
+                                R.string.debug_errors_clear_done,
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                        .setNegativeButton(R.string.debug_errors_clear_no, null)
+                        .show()
                 }
-
-                val errorText = com.mew.wlfmovie.utils.DebugErrorCollector.getErrorsAsText()
-                val count = com.mew.wlfmovie.utils.DebugErrorCollector.count()
-
-                val message = "$count errores registrados.\n\n" +
-                    errors.joinToString("\n---\n") { entry ->
-                        val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
-                            .format(java.util.Date(entry.timestamp))
-                        "[$time] [${entry.tag}] ${entry.message}" +
-                        if (entry.context.isNotEmpty()) "\n  Context: ${entry.context}" else "" +
-                        if (entry.stackTrace != null) "\n  Stack: ${entry.stackTrace.take(200)}" else ""
-                    }
-
-                android.app.AlertDialog.Builder(requireContext())
-                    .setTitle("Errores de debug ($count)")
-                    .setMessage(message)
-                    .setPositiveButton("Cerrar") { _, _ -> }
-                    .setNegativeButton("Copiar") { _, _ ->
-                        val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
-                            as android.content.ClipboardManager
-                        clipboard.setPrimaryClip(
-                            android.content.ClipData.newPlainText("WlfMovie Debug", errorText)
-                        )
-                        Toast.makeText(requireContext(), "Copiado al portapapeles", Toast.LENGTH_SHORT).show()
-                    }
-                    .show()
+                .setNegativeButton(R.string.debug_errors_copy_all) { _, _ ->
+                    val clipboard = requireContext()
+                        .getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                        as android.content.ClipboardManager
+                    clipboard.setPrimaryClip(
+                        android.content.ClipData.newPlainText("WlfMovie Errors", fullText)
+                    )
+                    Toast.makeText(
+                        requireContext(),
+                        R.string.debug_errors_copied_toast,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+                .setNeutralButton(android.R.string.cancel, null)
+                .show()
             }
         }
 

@@ -19,6 +19,7 @@
     <!-- WLFMOVIE Update 5: Remote Play (reproducir en PC) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -120,6 +121,14 @@
             android:name=".remoteplay.RemotePlayService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- WLFMOVIE V6.2: Servicio foreground para descarga de peliculas -->
+        <!-- Necesario para que el download arranque. Sin esto, startForegroundService
+             lanza IllegalStateException y se traga silenciosamente en runCatching. -->
+        <service
+            android:name=".download.MovieDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

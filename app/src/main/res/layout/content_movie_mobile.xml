@@ -242,6 +242,161 @@
             android:textStyle="bold"
             android:visibility="gone"
             tools:visibility="visible" />
+
+        <!-- WLFMOVIE Update 7: Botón Descargar (peliculas Remux) -->
+        <!-- WLFMOVIE V6.3.1: Cambio a FrameLayout para poder mostrar un spinner
+             encima del icono de descarga mientras la descarga esta activa.
+             El TextView interior mantiene el ID original btn_movie_download. -->
+        <FrameLayout
+            android:id="@+id/btn_movie_download_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp">
+
+            <TextView
+                android:id="@+id/btn_movie_download"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/wlf_bg_secondary_button_details"
+                android:clickable="true"
+                android:drawableStart="@drawable/wlf_ic_download"
+                android:drawablePadding="10dp"
+                android:drawableTint="@color/wlf_text_primary"
+                android:focusable="true"
+                android:gravity="center"
+                android:text="@string/download_button"
+                android:textColor="@color/wlf_text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <!-- WLFMOVIE V6.3.1: Spinner pequeño (24dp) sobre el icono de
+                 descarga. Se sobrepone al drawableStart del TextView via
+                 FrameLayout. visibility=gone por defecto; lo gestiona
+                 MovieViewHolder.updateDownloadButton(). -->
+            <ProgressBar
+                android:id="@+id/pb_movie_download_spinner"
+                style="?android:attr/progressBarStyleSmall"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="start|center_vertical"
+                android:layout_marginStart="14dp"
+                android:indeterminate="true"
+                android:indeterminateTint="@color/wlf_fuchsia_neon"
+                android:indeterminateTintMode="src_in"
+                android:visibility="gone"
+                tools:visibility="visible" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- ===== WLFMOVIE V6.3.2: PROGRESO DE DESCARGA EN DETALLES ===== -->
+    <!--
+      Sección debajo de los botones que aparece SOLO cuando hay una descarga
+      en curso para esta pelicula. Muestra:
+        - Icono de descarga (con spinner superpuesto)
+        - Texto "Descargando X MB · Y MB/s"
+        - Barra de progreso horizontal (si conocemos el total) o spinner
+        - Botón "Cancelar descarga" que abre el diálogo de cancelar
+
+      Si el usuario toca el botón principal "Descargando X MB" también abre
+      el diálogo, pero un botón dedicado y más visible evita la confusión
+      que el usuario reportó ("no veo en mis detalles de película el
+      cancelar descarga").
+    -->
+    <LinearLayout
+        android:id="@+id/ll_download_progress"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="20dp"
+        android:background="@drawable/wlf_bg_secondary_button_details"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="12dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ll_movie_buttons"
+        tools:visibility="visible">
+
+        <!-- Fila 1: icono + estado (MB + velocidad) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- FrameLayout para superponer spinner sobre el icono de descarga -->
+            <FrameLayout
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginEnd="10dp">
+
+                <ImageView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/wlf_ic_download"
+                    android:tint="@color/wlf_fuchsia_neon"
+                    tools:ignore="UseAppTint" />
+
+                <!-- Spinner pequeño (indeterminate) superpuesto -->
+                <ProgressBar
+                    android:id="@+id/pb_download_inline_spinner"
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:indeterminate="true"
+                    android:indeterminateTint="@color/wlf_fuchsia_neon"
+                    android:indeterminateTintMode="src_in" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/tv_download_status"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="@color/wlf_text_primary"
+                android:textSize="14sp"
+                tools:text="Descargando 23.4 MB · 5.2 MB/s" />
+        </LinearLayout>
+
+        <!-- Barra de progreso horizontal determinate.
+             Solo visible cuando conocemos el total (Remux, no HLS).
+             Para HLS el spinner de arriba ya indica actividad. -->
+        <ProgressBar
+            android:id="@+id/pb_download_inline_progress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="@color/wlf_seekbar_track"
+            android:progressTint="@color/wlf_fuchsia_neon"
+            android:visibility="gone"
+            tools:progress="35"
+            tools:visibility="visible" />
+
+        <!-- Fila 2: botón Cancelar -->
+        <TextView
+            android:id="@+id/btn_cancel_download_inline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/wlf_bg_play_button_details"
+            android:clickable="true"
+            android:focusable="true"
+            android:paddingStart="16dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="6dp"
+            android:text="@string/download_cancel_inline_button"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
     <!-- Barra de progreso (continue watching) -->
@@ -258,7 +413,7 @@
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/ll_movie_buttons"
+        app:layout_constraintTop_toBottomOf="@id/ll_download_progress"
         tools:progress="80"
         tools:visibility="visible" />
 

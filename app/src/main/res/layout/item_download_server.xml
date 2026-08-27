@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WLFMOVIE V6.3.4: Fila de opción de servidor para el diálogo de descarga.
+  Muestra el nombre del server (ej. "Opción 2 · Latino") y, como subtítulo,
+  el DOMINIO real del m3u8 resuelto (ej. "cdn.example.com") para que el
+  usuario sepa exactamente qué servidor elige.
+  Single-choice: radio indicator a la derecha relleno fucsia al seleccionar.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/row_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?android:attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="10dp">
+
+    <!-- Nombre + dominio -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tv_server_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/wlf_text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            tools:text="Opción 2 · Latino" />
+
+        <TextView
+            android:id="@+id/tv_server_domain"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/wlf_text_secondary"
+            android:textSize="12sp"
+            tools:text="cdn.example.com" />
+    </LinearLayout>
+
+    <!-- Indicador de selección (radio dot custom) -->
+    <ImageView
+        android:id="@+id/iv_selected"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:layout_marginStart="12dp"
+        android:contentDescription="@null"
+        android:src="@drawable/wlf_ic_radio_indicator" />
+
+</LinearLayout>

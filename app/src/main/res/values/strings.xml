@@ -523,4 +523,100 @@
     <string name="settings_parental_tmdb_disable_blocked">You must unlock parental controls before disabling TMDb.</string>
     <string name="settings_force_extra_buffer_title">Global Extra Buffering</string>
     <string name="settings_force_extra_buffer_summary">Enable extra buffering for all servers by default</string>
+
+    <!-- WLFMOVIE Update 7: Descargas offline (peliculas Remux) -->
+    <string name="home_downloads">Downloads</string>
+    <string name="download_button">Download</string>
+    <string name="download_button_progress">Downloading %1$d%%</string>
+    <string name="download_button_progress_bytes">Downloading… %1$s</string>
+    <string name="download_button_progress_full">Downloading %1$d%% — %2$s</string>
+    <string name="download_button_done">Downloaded</string>
+    <string name="download_button_offline">Watch offline</string>
+    <string name="download_button_not_available">Not available</string>
+    <string name="download_button_in_queue">Wait…</string>
+    <string name="download_already_active">A download is already in progress. Please wait for it to finish before starting another one.</string>
+    <string name="download_offline_mode">No internet connection. Showing downloads only.</string>
+    <string name="download_language_dialog_title">Download %1$s</string>
+    <string name="download_language_dialog_subtitle_singular">Only available in %1$s</string>
+    <string name="download_language_dialog_choose_language">Choose a language:</string>
+    <string name="download_language_dialog_estimated_size">Estimated size: %1$s</string>
+    <string name="download_language_dialog_calculating_size">Calculating size…</string>
+    <string name="download_language_dialog_cancel">Cancel</string>
+    <string name="download_language_dialog_download">Download</string>
+    <string name="download_language_latino">Latino</string>
+    <string name="download_language_subtitulado">Subtitled</string>
+    <string name="download_language_castellano">Castilian Spanish</string>
+    <string name="slow_link_warning_title">Download not available</string>
+    <string name="slow_link_warning_body">This movie doesn\'t have any available download server right now (neither fast link nor HLS). You can still watch it online.</string>
+    <string name="slow_link_warning_close">Close</string>
+    <string name="slow_link_warning_watch_online">Watch online</string>
+    <string name="download_delete_dialog_title">Delete download</string>
+    <string name="download_delete_dialog_body">Delete the download of "%1$s"? The local file will be removed.</string>
+    <string name="download_delete_dialog_cancel">Cancel</string>
+    <string name="download_delete_dialog_delete">Delete</string>
+    <string name="download_deleted_toast">Download deleted</string>
+    <!-- WLFMOVIE V6.3.1: Cancel download (stops in-progress + wipes partial files) -->
+    <string name="download_cancel_dialog_title">Cancel download</string>
+    <string name="download_cancel_dialog_body">Cancel the download of "%1$s"? Everything downloaded so far will be deleted and the operation will stop.</string>
+    <string name="download_cancel_dialog_keep">Keep downloading</string>
+    <string name="download_cancel_dialog_confirm">Cancel and delete</string>
+    <string name="download_cancelled_toast">Download cancelled — %1$s</string>
+    <!-- WLFMOVIE V6.3.1: Searching for download servers (button spinner state) -->
+    <string name="download_button_searching">Searching…</string>
+    <!-- WLFMOVIE V6.3.1: Already downloaded button label (replaces "Descargado" on Completed state) -->
+    <string name="download_button_completed">Downloaded</string>
+
+    <!-- WLFMOVIE V6.3.2: In-details progress card (below buttons) -->
+    <string name="download_inline_status">Downloading %1$s · %2$s</string>
+    <string name="download_inline_status_starting">Starting download…</string>
+    <string name="download_inline_status_stalled">Download stalled — retrying…</string>
+    <string name="download_cancel_inline_button">Cancel download</string>
+    <string name="download_stalled_toast">Download stalled with no progress. Try again later.</string>
+    <!-- WLFMOVIE V6.3.3: finalize/save phase + watchdog interventions + DMCA -->
+    <string name="download_inline_status_finalizing">Saving movie… %1$d%%</string>
+    <string name="download_inline_status_stalled_bytes">Downloading %1$s · retrying…</string>
+    <string name="download_button_finalizing">Saving… %1$d%%</string>
+    <string name="download_notification_finalizing">Saving %1$d%% — %2$s of %3$s</string>
+    <string name="download_no_segments_toast">That server removed the file (DMCA). Try another language or movie.</string>
+    <!-- WLFMOVIE V6.3.4: Server selection dialog + offline simple notice -->
+    <string name="download_server_dialog_title">Choose a server</string>
+    <string name="download_server_dialog_title_retry">That server failed. Choose another one</string>
+    <string name="download_server_dialog_subtitle">%1$s · %2$d servers available</string>
+    <string name="download_server_dialog_hint">If one fails, you will come back here to pick another</string>
+    <string name="download_failed_server_excluded">Server removed from the list for this attempt</string>
+    <string name="loading_offline_title">No internet or the server is not responding.\nConnect to see the catalog.</string>
+    <string name="download_no_space_title">Not enough space</string>
+    <string name="download_no_space_body">You need %1$s but only have %2$s free. Delete old downloads to make room.</string>
+    <string name="download_no_space_ok">OK</string>
+    <string name="download_no_internet_title">No internet connection</string>
+    <string name="download_no_internet_body">You need an internet connection to find download links. Try again later.</string>
+    <string name="download_no_internet_ok">OK</string>
+    <string name="download_started_toast">Download started: %1$s</string>
+    <string name="download_completed_toast">Download completed: %1$s</string>
+    <string name="download_failed_toast">Download failed: %1$s</string>
+    <string name="download_notification_channel_name">Downloads</string>
+    <string name="download_notification_channel_desc">Movie download progress</string>
+    <string name="download_notification_progress">Downloading %1$d%% — %2$s of %3$s</string>
+    <string name="download_notification_completed">Download completed — %1$s</string>
+    <string name="download_notification_failed">Download failed — %1$s</string>
+    <string name="download_notification_cancel">Cancel download</string>
+
+    <!-- WLFMOVIE V6.2: Crash handler + error collector -->
+    <string name="last_crash_dialog_title">The app crashed last time</string>
+    <string name="last_crash_dialog_intro">WlfMovie was closed unexpectedly. Here is what we captured:</string>
+    <string name="last_crash_dialog_view_all">View all errors</string>
+    <string name="last_crash_dialog_close">Close</string>
+    <string name="last_crash_dialog_copy">Copy</string>
+    <string name="last_crash_dialog_copied">Copied to clipboard</string>
+
+    <string name="debug_errors_button">Collected errors</string>
+    <string name="debug_errors_dialog_title">Collected errors (%1$d)</string>
+    <string name="debug_errors_empty">No errors collected.</string>
+    <string name="debug_errors_copy_all">Copy all</string>
+    <string name="debug_errors_clear">Clear</string>
+    <string name="debug_errors_clear_confirm">Clear all collected errors?</string>
+    <string name="debug_errors_clear_yes">Clear</string>
+    <string name="debug_errors_clear_no">Cancel</string>
+    <string name="debug_errors_clear_done">Errors cleared</string>
+    <string name="debug_errors_copied_toast">Copied to clipboard</string>
 </resources>

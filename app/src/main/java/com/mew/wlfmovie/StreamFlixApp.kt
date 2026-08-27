@@ -7,12 +7,15 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import java.security.Security
 import org.conscrypt.Conscrypt
+import com.mew.wlfmovie.BuildConfig
 import com.mew.wlfmovie.database.AppDatabase
 import com.mew.wlfmovie.providers.AniWorldProvider
 import com.mew.wlfmovie.providers.SerienStreamProvider
 import com.mew.wlfmovie.utils.AppLanguageManager
 import com.mew.wlfmovie.utils.ArtworkRepairScheduler
 import com.mew.wlfmovie.utils.CacheUtils
+import com.mew.wlfmovie.utils.CrashHandler
+import com.mew.wlfmovie.utils.CrashLogger
 import com.mew.wlfmovie.utils.DnsResolver
 import com.mew.wlfmovie.utils.IsrgRootTrustProvider
 import com.mew.wlfmovie.utils.UserPreferences
@@ -40,6 +43,29 @@ class StreamFlixApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // WLFMOVIE V6.2: Instalar el crash handler y el logger persistente
+        // lo antes posible, antes de cualquier otra inicializacion que pueda
+        // crashear. Cualquier excepcion no atrapada en cualquier hilo queda
+        // escrita en filesDir/wlfmovie-errors.log y se muestra al usuario en
+        // el siguiente arranque via LastCrashDialog.
+        //
+        // WLFMOVIE V6.2.3: En release NO inicializamos el CrashLogger
+        // (no crea archivo en disco, no escribe nada, no consume I/O).
+        // CrashHandler SI se instala en release — pero su handleUncaught()
+        // interno hace early return en release, asi que solo logcat sin
+        // persistencia. Resultado: en release no hay rastro en disco de
+        // crashes ni errores, en debug el log funciona como siempre.
+        try {
+            if (BuildConfig.DEBUG) {
+                CrashLogger.init(this)
+            }
+            CrashHandler.install(this)
+        } catch (t: Throwable) {
+            // Si el propio handler falla al instalar, no rompamos la app.
+            android.util.Log.e("WlfMovie-App", "No se pudo instalar CrashHandler", t)
+        }
+
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
 

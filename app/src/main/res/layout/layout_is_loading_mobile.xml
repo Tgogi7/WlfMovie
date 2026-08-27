@@ -79,4 +79,27 @@
         app:constraint_referenced_ids="tv_is_loading_error,btn_is_loading_retry,btn_is_loading_clear_cache,btn_is_loading_error_details"
         tools:visibility="visible" />
 
+    <!--
+      WLFMOVIE V6.3.4: Aviso simple para sin internet / servidor caido cuando
+      NO hay descargas. Sin botones (ni Reintentar ni Vaciar cache ni
+      Detalles) — el usuario pidio "solo dirá que el servidor no responde o
+      sin internet y nada más".
+    -->
+    <TextView
+        android:id="@+id/tv_is_loading_offline"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="32dp"
+        android:gravity="center"
+        android:text="@string/loading_offline_title"
+        android:textColor="@color/wlf_text_secondary"
+        android:textSize="16sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="Sin internet o el servidor no responde.\nConéctate para ver el catálogo."
+        tools:visibility="visible" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>
