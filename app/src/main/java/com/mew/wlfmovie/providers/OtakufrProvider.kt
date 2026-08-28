@@ -33,7 +33,8 @@ object OtakufrProvider : Provider {
     override val logo = "https://i.ibb.co/GndKBbF/otakufr-logo.webp"
     override val language = "fr"
 
-    private val service = Service.build()
+    // WLFMOVIE V6.4.1: lazy — no construir el cliente OkHttp al cargar la clase (fix crash de inicializacion temprana)
+    private val service by lazy { Service.build() }
 
     override suspend fun getHome(): List<Category> {
         val categories = mutableListOf<Category>()

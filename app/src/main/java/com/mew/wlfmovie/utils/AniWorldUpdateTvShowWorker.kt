@@ -28,7 +28,10 @@ class AniWorldUpdateTvShowWorker(
     }
 
     private val dao = AniWorldDatabase.getInstance(context).tvShowDao()
-    private val provider = AniWorldProvider
+    // WLFMOVIE V6.4.1: sin referencia eager a AniWorldProvider en el constructor.
+    // Instanciar el provider aqui (hilo de WorkManager, potencialmente ANTES
+    // de App.onCreate) era el disparador del crash de inicializacion. Se usa
+    // AniWorldProvider directamente dentro de doWork().
     private val gson = Gson()
 
     override suspend fun doWork(): Result = coroutineScope {
@@ -75,7 +78,7 @@ class AniWorldUpdateTvShowWorker(
                     async {
                         semaphore.withPermit {
                             try {
-                                val detailed = provider.getTvShow(show.id)
+                                val detailed = AniWorldProvider.getTvShow(show.id)
                                 val updated = show.copy(
                                     poster = detailed.poster,
                                     overview = detailed.overview

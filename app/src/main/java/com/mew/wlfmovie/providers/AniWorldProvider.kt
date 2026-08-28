@@ -61,7 +61,11 @@ object AniWorldProvider : Provider {
     override val logo = "$URL/public/img/facebook.jpg"
     override val language = "de"
 
-    private val service = Service.build()
+    // WLFMOVIE V6.4.1: lazy — construir el cliente OkHttp (que toca DnsResolver)
+    // al cargar la clase provocaba un crash de inicializacion en el primer
+    // arranque si WorkManager instanciaba un worker antes de App.onCreate.
+    // Ahora se construye en el primer uso real (siempre post-onCreate).
+    private val service by lazy { Service.build() }
 
     private var tvShowDao: TvShowDao? = null
     private var isWorkerScheduled = false

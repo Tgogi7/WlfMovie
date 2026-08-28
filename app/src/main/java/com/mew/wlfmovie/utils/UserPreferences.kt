@@ -22,6 +22,12 @@ object UserPreferences {
 
     private lateinit var prefs: SharedPreferences
 
+    // WLFMOVIE V6.4.1: true una vez que setup() termino. Los accesores de Key
+    // lo consultan para no lanzar UninitializedPropertyAccessException si algo
+    // toca UserPreferences antes del setup (racy al primer arranque).
+    @Volatile
+    private var prefsReady = false
+
     // Default DoH Provider URL (Cloudflare)
     private const val DEFAULT_DOH_PROVIDER_URL = "https://cloudflare-dns.com/dns-query"
     const val DOH_DISABLED_VALUE = "" // Value to represent DoH being disabled
@@ -58,6 +64,7 @@ object UserPreferences {
             prefsName,
             Context.MODE_PRIVATE,
         )
+        prefsReady = true
         if (::prefs.isInitialized) {
             debugLog { "prefs initialized: ${prefs.hashCode()}" }
 
@@ -577,12 +584,19 @@ object UserPreferences {
         PROVIDER_LANGUAGE,
         FAVORITE_PROVIDERS;
 
+        // WLFMOVIE V6.4.1: guards — si algo (worker de WorkManager, init de
+        // otro object) toca UserPreferences antes de setup(), devolver default
+        // en vez de UninitializedPropertyAccessException (que envenenaba
+        // <clinit> de otras clases y crasheaba la app en el primer arranque).
+
         fun getStringSet(): Set<String>? = when {
+            !prefsReady -> null
             prefs.contains(name) -> prefs.getStringSet(name, null)
             else -> null
         }
 
         fun setStringSet(value: Set<String>?) = value?.let {
+            if (!prefsReady) return@let
             with(prefs.edit()) {
                 putStringSet(name, value)
                 apply()
@@ -590,31 +604,37 @@ object UserPreferences {
         } ?: remove()
 
         fun getBoolean(): Boolean? = when {
+            !prefsReady -> null
             prefs.contains(name) -> prefs.getBoolean(name, false)
             else -> null
         }
 
         fun getFloat(): Float? = when {
+            !prefsReady -> null
             prefs.contains(name) -> prefs.getFloat(name, 0F)
             else -> null
         }
 
         fun getInt(): Int? = when {
+            !prefsReady -> null
             prefs.contains(name) -> prefs.getInt(name, 0)
             else -> null
         }
 
         fun getLong(): Long? = when {
+            !prefsReady -> null
             prefs.contains(name) -> prefs.getLong(name, 0)
             else -> null
         }
 
         fun getString(): String? = when {
+            !prefsReady -> null
             prefs.contains(name) -> prefs.getString(name, null)
             else -> null
         }
 
         fun setBoolean(value: Boolean?) = value?.let {
+            if (!prefsReady) return@let
             with(prefs.edit()) {
                 putBoolean(name, value)
                 apply()
@@ -622,6 +642,7 @@ object UserPreferences {
         } ?: remove()
 
         fun setFloat(value: Float?) = value?.let {
+            if (!prefsReady) return@let
             with(prefs.edit()) {
                 putFloat(name, value)
                 apply()
@@ -629,6 +650,7 @@ object UserPreferences {
         } ?: remove()
 
         fun setInt(value: Int?) = value?.let {
+            if (!prefsReady) return@let
             with(prefs.edit()) {
                 putInt(name, value)
                 apply()
@@ -636,6 +658,7 @@ object UserPreferences {
         } ?: remove()
 
         fun setLong(value: Long?) = value?.let {
+            if (!prefsReady) return@let
             with(prefs.edit()) {
                 putLong(name, value)
                 apply()
@@ -643,15 +666,19 @@ object UserPreferences {
         } ?: remove()
 
         fun setString(value: String?) = value?.let {
+            if (!prefsReady) return@let
             with(prefs.edit()) {
                 putString(name, value)
                 apply()
             }
         } ?: remove()
 
-        fun remove() = with(prefs.edit()) {
-            remove(name)
-            apply()
+        fun remove() {
+            if (!prefsReady) return
+            with(prefs.edit()) {
+                remove(name)
+                apply()
+            }
         }
     }
 }

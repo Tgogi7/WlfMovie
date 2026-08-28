@@ -27,6 +27,8 @@ let lastReportedPosition = -1;
 let videoLoaded = false;  // evita recargar el video al reconectar el WS
 let currentVideoUrl = null;
 let stopReceived = false;  // true cuando el mobile envió 'stop' intencionalmente
+let initialLoadTimer = null;  // V6.4.2: espera breve al video_info del WS antes de cargar por /info
+let hlsMediaErrorRecoveries = 0;  // V6.4.2: recuperaciones de mediaError ya intentadas
 
 // ===== Init =====
 
@@ -55,8 +57,25 @@ async function init() {
         const duration = info.duration || 0;
         const isHls = info.isHls || false;
 
-        // Cargar el video
-        loadVideo('/stream', position, isHls);
+        // V6.4.2: si hay WebSocket, el celular manda video_info apenas conecta
+        // (~100-300ms). Esperarlo evita cargar el video DOS veces (la segunda
+        // destruye el primer hls.js en plena carga — carrera que podia dejar
+        // el SourceBuffer en estado "ended" y matar la reproduccion con
+        // bufferAppendError). Si el WS no conecta en 1.5s, cargamos igual:
+        // el video funciona, solo sin control remoto.
+        if (info.wsUrl) {
+            if (initialLoadTimer) clearTimeout(initialLoadTimer);
+            initialLoadTimer = setTimeout(() => {
+                initialLoadTimer = null;
+                if (!videoLoaded && !currentVideoUrl) {
+                    console.log('[WlfMovie Remote] video_info no llegó por WS — cargando desde /info');
+                    loadVideo('/stream', position, isHls);
+                }
+            }, 1500);
+        } else {
+            // Sin wsUrl (no debería pasar): cargar directo como siempre.
+            loadVideo('/stream', position, isHls);
+        }
 
         if (duration > 0) {
             durationEl.textContent = formatTime(duration);
@@ -156,6 +175,7 @@ function handleServerMessage(msg) {
             // Resetear estado y recargar SIEMPRE — el móvil puede mandar un video nuevo
             // (ej: cuando el user comparte otro ep después de un stop).
             console.log('[WlfMovie Remote] video_info recibido:', msg);
+            if (initialLoadTimer) { clearTimeout(initialLoadTimer); initialLoadTimer = null; }
             titleEl.textContent = msg.title || 'WlfMovie';
             const subtitle = msg.subtitle || '';
             subtitleEl.textContent = subtitle;
@@ -296,6 +316,7 @@ function loadVideo(url, startPosition, isHls) {
         hls.destroy();
         hls = null;
     }
+    hlsMediaErrorRecoveries = 0;
 
     bufferingEl.style.display = 'block';
     hideError();
@@ -322,6 +343,20 @@ function loadVideo(url, startPosition, isHls) {
         hls.on(Hls.Events.ERROR, (event, data) => {
             if (data.fatal) {
                 console.error('[WlfMovie Remote] HLS fatal error:', data);
+                // V6.4.2: los mediaError (bufferAppendError, decoder, MSE)
+                // suelen ser recuperables con recoverMediaError() — intentarlo
+                // hasta 2 veces antes de rendirse. El caso tipico: un append
+                // que llega cuando el MediaSource ya estaba "ended".
+                if (data.type === Hls.ErrorTypes.MEDIA_ERROR && hlsMediaErrorRecoveries < 2) {
+                    hlsMediaErrorRecoveries++;
+                    console.warn('[WlfMovie Remote] intentando recuperar el decoder (' + hlsMediaErrorRecoveries + '/2)...');
+                    try {
+                        hls.recoverMediaError();
+                        return;
+                    } catch (e) {
+                        console.warn('[WlfMovie Remote] recoverMediaError falló:', e);
+                    }
+                }
                 showError('Error de carga del video: ' + (data.details || data.type));
             }
         });
@@ -544,4 +579,5 @@ retryBtn.addEventListener('click', () => {
 });
 
 // Start
+console.log('[WlfMovie Remote] app.js V6.4.2');
 init();

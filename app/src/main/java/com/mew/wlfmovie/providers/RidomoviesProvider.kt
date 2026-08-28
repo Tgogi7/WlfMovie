@@ -30,7 +30,8 @@ object RidomoviesProvider : Provider {
     override val logo = "$URL/images/home-logo.png"
     override val language = "en"
 
-    private val service = Service.build()
+    // WLFMOVIE V6.4.1: lazy — no construir el cliente OkHttp al cargar la clase (fix crash de inicializacion temprana)
+    private val service by lazy { Service.build() }
     private var currentSlug: String? = null
 
     override suspend fun getHome(): List<Category> {

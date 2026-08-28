@@ -101,7 +101,15 @@ class StreamFlixApp : Application() {
 
         // 2. Inizializzazione preferenze (con applicationContext)
         UserPreferences.setup(this)
-        DnsResolver.setDnsUrl(UserPreferences.dohProviderUrl)
+
+        // WLFMOVIE V6.4.1: configurar DNS DESPUES de setup() y con guarda —
+        // un fallo aqui jamas debe tumbar la app en el arranque (antes era un
+        // NoClassDefFoundError FATAL por una clase mal inicializada en otro hilo).
+        try {
+            DnsResolver.setDnsUrl(UserPreferences.dohProviderUrl)
+        } catch (t: Throwable) {
+            android.util.Log.e("WlfMovie-App", "No se pudo configurar el DNS, se usara el del sistema", t)
+        }
 
         val appContext = applicationContext
         val isTv = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
