@@ -121,6 +121,25 @@ class StreamFlixApp : Application() {
             AniWorldProvider.initialize(appContext)
             ArtworkRepairScheduler.schedule(appContext, UserPreferences.currentProvider)
             CacheUtils.autoClearIfNeeded(appContext, thresholdMb = threshold)
+
+            // WLFMOVIE V6.4.5: reanudar la cola de conversión TS→MP4. Con la
+            // opción activada, las descargas .ts pendientes (incluidas las que
+            // quedaron a mitad cuando la app se cerró) se re-encolan y se
+            // convierten mientras la app esté abierta — sin internet.
+            runCatching {
+                if (UserPreferences.convertDownloadsToMp4) {
+                    val n = com.mew.wlfmovie.download.DownloadConverter
+                        .enqueueAllPending(appContext)
+                    if (n > 0) {
+                        android.util.Log.i(
+                            "WlfMovie-App",
+                            "Cola de conversión a MP4 reanudada: $n películas pendientes",
+                        )
+                    }
+                }
+            }.onFailure {
+                android.util.Log.e("WlfMovie-App", "No se pudo reanudar la cola de conversión MP4", it)
+            }
         }
     }
 

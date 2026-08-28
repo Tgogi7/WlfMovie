@@ -13,3 +13,5 @@ local.properties
 
 # Android release builds
 /app/release/
+
+*.zip

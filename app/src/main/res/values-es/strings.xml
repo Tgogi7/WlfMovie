@@ -605,4 +605,19 @@
     <string name="debug_errors_clear_no">Cancelar</string>
     <string name="debug_errors_clear_done">Errores borrados</string>
     <string name="debug_errors_copied_toast">Copiado al portapapeles</string>
+
+    <!-- WLFMOVIE V6.4.4: Configuracion -> Descargas (solo movil) -->
+    <string name="settings_downloads_section">Descargas</string>
+    <string name="settings_convert_downloads_title">Convertir descargas a MP4</string>
+    <string name="settings_convert_downloads_desc">Necesario para poder enviar las descargas al PC. Al terminar una descarga, se convertirá a MP4 en una cola local: no necesita internet, solo mantener la app abierta. La conversión puede tomar unos minutos extra, pero la reproducción en el PC pasa a ser directa y estable.</string>
+    <string name="settings_convert_downloads_on_toast">Conversión a MP4 activada</string>
+    <string name="settings_convert_downloads_off_toast">Conversión a MP4 desactivada</string>
+
+    <!-- WLFMOVIE V6.4.5: estado de conversion en detalles de la pelicula -->
+    <string name="settings_convert_queued_toast">%1$d películas en cola para convertir a MP4</string>
+    <string name="conversion_status_converting">Convirtiendo a MP4… %1$d%%</string>
+    <string name="conversion_status_converting_elapsed">Convirtiendo a MP4… %1$s</string>
+    <string name="conversion_status_queued">En cola para convertir (posición %1$d)</string>
+    <string name="conversion_status_completed">MP4 listo</string>
+    <string name="conversion_status_failed">No se pudo convertir a MP4 — se enviará al PC como TS</string>
 </resources>

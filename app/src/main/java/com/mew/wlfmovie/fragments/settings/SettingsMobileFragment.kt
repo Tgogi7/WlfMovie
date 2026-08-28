@@ -20,6 +20,7 @@ import com.mew.wlfmovie.databinding.FragmentSettingsMobileBinding
 import com.mew.wlfmovie.utils.AccountManager
 import com.mew.wlfmovie.utils.SyncManager
 import com.mew.wlfmovie.utils.SupabaseClient
+import com.mew.wlfmovie.utils.UserPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -114,6 +115,45 @@ class SettingsMobileFragment : Fragment() {
 
         binding.btnSettingsTerms.setOnClickListener {
             showTermsDialog()
+        }
+
+        // WLFMOVIE V6.4.4: Seccion Descargas — conversion a MP4 (SOLO configs
+        // moviles; SettingsTvFragment no la incluye a proposito).
+        // V6.4.5 (FASE 2): al ACTIVAR el switch se detectan las descargas que
+        // ya existen en .ts y se encolan automáticamente para convertir (cola
+        // automática, FIFO: la más antigua primero). Al DESACTIVAR se vacía la
+        // cola pendiente (la conversión en curso termina para no desperdiciar
+        // el trabajo ya hecho) y las descargas futuras vuelven a quedar en .ts.
+        binding.swSettingsConvertDownloads.isChecked = UserPreferences.convertDownloadsToMp4
+        binding.swSettingsConvertDownloads.setOnCheckedChangeListener { _, checked ->
+            UserPreferences.convertDownloadsToMp4 = checked
+            if (checked) {
+                // Detectar descargas .ts existentes y encolarlas (cola
+                // automática). El DAO es I/O → coroutine en IO, toast en main.
+                val appCtx = requireContext().applicationContext
+                lifecycleScope.launch {
+                    val queued = withContext(Dispatchers.IO) {
+                        runCatching {
+                            com.mew.wlfmovie.download.DownloadConverter.enqueueAllPending(appCtx)
+                        }.getOrDefault(0)
+                    }
+                    val msg = if (queued > 0) {
+                        getString(R.string.settings_convert_queued_toast, queued)
+                    } else {
+                        getString(R.string.settings_convert_downloads_on_toast)
+                    }
+                    Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
+                }
+            } else {
+                runCatching {
+                    com.mew.wlfmovie.download.DownloadConverter.cancelQueued()
+                }
+                Toast.makeText(
+                    requireContext(),
+                    getString(R.string.settings_convert_downloads_off_toast),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
         }
 
         updateUI()

@@ -27,6 +27,11 @@ interface DownloadDao {
     @Query("UPDATE downloads SET watchPositionMillis = :position, durationMillis = :duration, isWatched = :isWatched WHERE id = :id")
     suspend fun updateProgress(id: String, position: Long, duration: Long, isWatched: Boolean)
 
+    // WLFMOVIE V6.4.5: tras convertir .ts → .mp4, la ruta de la descarga
+    // cambia (DownloadConverter). Sin cambio de esquema (mismas columnas).
+    @Query("UPDATE downloads SET filePath = :filePath, fileSizeBytes = :fileSizeBytes WHERE id = :id")
+    suspend fun updateFilePath(id: String, filePath: String, fileSizeBytes: Long)
+
     @Query("DELETE FROM downloads WHERE id = :id")
     suspend fun deleteById(id: String)
 }

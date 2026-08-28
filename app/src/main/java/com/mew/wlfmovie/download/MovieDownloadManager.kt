@@ -802,6 +802,10 @@ object MovieDownloadManager {
             runCatching { artworkFileFor(context, id, isPoster = true).delete() }
             runCatching { artworkFileFor(context, id, isPoster = false).delete() }
         }
+        // WLFMOVIE V6.4.5: cancelar conversión en cola/curso antes de borrar
+        // la row (el converter también se auto-aborta al no encontrar la row,
+        // pero esto lo detiene YA y limpia el .tmp).
+        runCatching { DownloadConverter.cancel(id) }
         dao.deleteById(id)
         // Tambien limpiar notificacion y estado en vivo si quedaba.
         MovieDownloadNotifier.cancel(context.applicationContext, id)

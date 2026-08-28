@@ -311,6 +311,19 @@ object UserPreferences {
             Key.UPDATE_CHECK_ENABLED.setBoolean(value)
         }
 
+    // WLFMOVIE V6.4.4: convertir descargas a MP4 al terminar la descarga.
+    // Las descargas HLS se guardan como .ts (MPEG-TS o fMP4 concatenado), que
+    // es lo que hace tan fragil "Enviar descarga al PC" (segmentos HLS).
+    // Con esta opcion activada, cada descarga terminada pasa por una cola de
+    // conversion LOCAL (remux a MP4, sin re-codificar, sin internet) y el
+    // resultado es un MP4 normal que se puede servir directo por HTTP.
+    // Visible SOLO en Configuracion -> movil (SettingsMobileFragment).
+    var convertDownloadsToMp4: Boolean
+        get() = Key.CONVERT_DOWNLOADS_TO_MP4.getBoolean() ?: false
+        set(value) {
+            Key.CONVERT_DOWNLOADS_TO_MP4.setBoolean(value)
+        }
+
     fun unlockParentalControls() {
         parentalControlFailedAttempts = 0
         parentalControlLockedUntilMillis = 0L
@@ -582,7 +595,8 @@ object UserPreferences {
         BYPASS_WS_ADVERTISED_HOST,
         UPDATE_CHECK_ENABLED,
         PROVIDER_LANGUAGE,
-        FAVORITE_PROVIDERS;
+        FAVORITE_PROVIDERS,
+        CONVERT_DOWNLOADS_TO_MP4;
 
         // WLFMOVIE V6.4.1: guards — si algo (worker de WorkManager, init de
         // otro object) toca UserPreferences antes de setup(), devolver default
