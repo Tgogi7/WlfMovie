@@ -29,6 +29,19 @@ let currentVideoUrl = null;
 let stopReceived = false;  // true cuando el mobile envió 'stop' intencionalmente
 let initialLoadTimer = null;  // V6.4.2: espera breve al video_info del WS antes de cargar por /info
 let hlsMediaErrorRecoveries = 0;  // V6.4.2: recuperaciones de mediaError ya intentadas
+let loadedVideoKey = null;  // V6.4.3: 'title|url' del video ya cargado (evita recargas por reconexión del WS)
+
+// V6.4.3: cache-buster — el navegador del PC puede tener respuestas viejas de
+// builds anteriores guardadas en su caché (los builds pre-6.4.2 no mandaban
+// headers anti-caché en /stream ni en los segmentos). Un URL ÚNICO por carga
+// garanta que el manifest SIEMPRE llegue al celular, y como dentro del m3u8
+// los segmentos ahora son relativos y versionados (?v=hash), tampoco pueden
+// reponerse segmentos viejos desde la caché. Esto mata el "fantasma" de
+// reproducciones que el celular nunca registró como conexión.
+function cacheBust(url) {
+    const sep = url.includes('?') ? '&' : '?';
+    return url + sep + 'cb=' + Date.now();
+}
 
 // ===== Init =====
 
@@ -36,7 +49,7 @@ async function init() {
     console.log('[WlfMovie Remote] init');
 
     try {
-        const resp = await fetch('/info');
+        const resp = await fetch(cacheBust('/info'));
         const info = await resp.json();
         console.log('[WlfMovie Remote] info:', info);
 
@@ -170,10 +183,8 @@ function wsSend(obj) {
 
 function handleServerMessage(msg) {
     switch (msg.type) {
-        case 'video_info':
+        case 'video_info': {
             // El celular nos mandó la info del video.
-            // Resetear estado y recargar SIEMPRE — el móvil puede mandar un video nuevo
-            // (ej: cuando el user comparte otro ep después de un stop).
             console.log('[WlfMovie Remote] video_info recibido:', msg);
             if (initialLoadTimer) { clearTimeout(initialLoadTimer); initialLoadTimer = null; }
             titleEl.textContent = msg.title || 'WlfMovie';
@@ -181,6 +192,36 @@ function handleServerMessage(msg) {
             subtitleEl.textContent = subtitle;
             subtitleEl.style.display = subtitle ? 'block' : 'none';
 
+            // V6.4.3: GUARDA anti-tormenta-de-recargas.
+            // El WS se reconecta solo (cada 2s) tras cualquier corte — hotspot
+            // con power-save, pantalla del celu apagada, etc — y en CADA
+            // reconexión el celular re-envía video_info. Antes eso destruía y
+            // recargaba TODO el video en plena reproducción (se perdía el
+            // buffer, se re-pedía /stream y la reproducción quedaba a merced
+            // de la reconstrucción del índice). Ahora: si es el MISMO video,
+            // ya está cargado, sano y sin salto grande de posición, NO se
+            // recarga — la reconexión pasa totalmente invisible.
+            const key = (msg.title || '') + '|' + (msg.url || '/stream');
+            const newPositionSec = (msg.position || 0) / 1000;
+            const driftSec = Math.abs(video.currentTime - newPositionSec);
+            const errorVisible = !errorEl.classList.contains('hidden');
+            const sameVideo = loadedVideoKey === key && videoLoaded && !errorVisible;
+            if (sameVideo && driftSec < 60) {
+                console.log('[WlfMovie Remote] mismo video ya cargado (drift=' +
+                    driftSec.toFixed(1) + 's) — NO recargando (reconexión WS invisible)');
+                lastReportedPosition = -1;
+                break;
+            }
+            if (sameVideo && driftSec >= 60) {
+                console.log('[WlfMovie Remote] mismo video pero posición saltó ' +
+                    driftSec.toFixed(1) + 's — buscando sin recargar');
+                video.currentTime = newPositionSec;
+                lastReportedPosition = -1;
+                break;
+            }
+
+            // Video NUEVO (o había error / nunca se cargó) → resetear y cargar
+            loadedVideoKey = key;
             // Resetear posición reportada para que el sync empiece limpio
             lastReportedPosition = -1;
 
@@ -191,6 +232,7 @@ function handleServerMessage(msg) {
             // Recargar el video con la nueva posición
             loadVideo(msg.url || '/stream', msg.position || 0, msg.isHls || false);
             break;
+        }
         case 'play':
             video.play().catch(err => console.warn('[WlfMovie Remote] play blocked:', err));
             break;
@@ -202,7 +244,7 @@ function handleServerMessage(msg) {
                 video.currentTime = msg.position / 1000;
             }
             break;
-        case 'stop':
+        case 'stop': {
             // El celular detuvo el cast intencionalmente.
             // Mostrar mensaje y esperar a que llegue un video_info nuevo
             // (NO reintentar automáticamente).
@@ -210,6 +252,7 @@ function handleServerMessage(msg) {
             stopReceived = true;  // flag para que ws.onclose no muestre "conexión perdida"
             video.pause();
             videoLoaded = false;
+            loadedVideoKey = null;  // V6.4.3: el próximo video_info debe recargar
             // Destruir HLS para liberar recursos
             if (hls) {
                 hls.destroy();
@@ -219,6 +262,7 @@ function handleServerMessage(msg) {
             video.load();
             showStopMessage();
             break;
+        }
     }
 }
 
@@ -322,6 +366,10 @@ function loadVideo(url, startPosition, isHls) {
     hideError();
 
     currentVideoUrl = url;
+    // V6.4.3: URL única por carga → el manifest NUNCA puede salir de la
+    // caché del navegador (los builds viejos no mandaban anti-caché y el PC
+    // podía estar reponiendo un m3u8 de días atrás sin que el celular lo supiera).
+    const loadUrl = cacheBust(url);
     const useHls = isHls || url.includes('.m3u8');
 
     if (useHls && Hls.isSupported()) {
@@ -330,7 +378,7 @@ function loadVideo(url, startPosition, isHls) {
             enableWorker: true,
             lowLatencyMode: false,
         });
-        hls.loadSource(url);
+        hls.loadSource(loadUrl);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
             console.log('[WlfMovie Remote] manifest parsed, ready to play');
@@ -362,7 +410,7 @@ function loadVideo(url, startPosition, isHls) {
         });
     } else if (useHls && video.canPlayType('application/vnd.apple.mpegurl')) {
         console.log('[WlfMovie Remote] usando HLS nativo (Safari)');
-        video.src = url;
+        video.src = loadUrl;
         video.addEventListener('loadedmetadata', () => {
             videoLoaded = true;
             if (startPosition > 0) {
@@ -372,7 +420,7 @@ function loadVideo(url, startPosition, isHls) {
         }, { once: true });
     } else {
         console.log('[WlfMovie Remote] usando video nativo');
-        video.src = url;
+        video.src = loadUrl;
         video.addEventListener('loadedmetadata', () => {
             videoLoaded = true;
             if (startPosition > 0) {
@@ -579,5 +627,5 @@ retryBtn.addEventListener('click', () => {
 });
 
 // Start
-console.log('[WlfMovie Remote] app.js V6.4.2');
+console.log('[WlfMovie Remote] app.js V6.4.3');
 init();

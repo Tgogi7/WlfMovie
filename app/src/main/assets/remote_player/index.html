@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WlfMovie Remote Player</title>
-    <link rel="stylesheet" href="/assets/styles.css">
+    <!-- V6.4.3: assets versionados — tras actualizar la app, si el navegador del
+         PC ignorara los headers anti-caché, la URL nueva (?v=) fuerza la descarga
+         del JS/CSS nuevos. index.html mismo se sirve con no-store. -->
+    <link rel="stylesheet" href="/assets/styles.css?v=6.4.3">
     <link rel="icon" type="image/svg+xml" href="/logo">
 </head>
 <body>
@@ -50,7 +53,7 @@
         </div>
     </div>
 
-    <script src="/assets/hls.min.js"></script>
-    <script src="/assets/app.js"></script>
+    <script src="/assets/hls.min.js?v=6.4.3"></script>
+    <script src="/assets/app.js?v=6.4.3"></script>
 </body>
 </html>

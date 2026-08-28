@@ -14,6 +14,7 @@ import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.SequenceInputStream
+import java.util.Locale
 
 class RemotePlayServer(
     private val context: Context,
@@ -23,17 +24,45 @@ class RemotePlayServer(
     companion object {
         private const val TAG = "WlfMovie-RemoteServer"
         private const val PORT = 8080
+
+        /** Indices de archivos locales conservados en el registro (LRU). */
+        private const val MAX_LOCAL_INDEXES = 3
     }
 
     private val videoProxy = VideoProxy()
     private var webSocket: NanoWSD.WebSocket? = null
 
-    // WLFMOVIE V6.4.1: cache del indice de segmentos del archivo local
-    // (parseo de PAT/PMT/PCR o de cajas MP4). Se construye una sola vez por
-    // archivo y se invalida sola si el archivo cambia.
+    // =================================================================
+    // WLFMOVIE V6.4.3: registro de indices por IDENTIDAD de archivo.
+    //
+    // Antes (V6.4.1/2) habia UN solo indice cacheado cuya clave incluia
+    // `RemotePlayState.currentDuration` — un valor que se REESCRIBE en cada
+    // reporte de posicion del PC (updateRemotePosition) — y el archivo a
+    // servir se resolvia por ESTADO DE SESION (`localFilePath`). Resultado:
+    // el indice podia reconstruirse en plena reproduccion, y cualquier
+    // cambio de sesion (re-cast, cambio de pelicula, reset) movia el piso
+    // debajo de un player que estaba descargando segmentos → los bytes de
+    // /localsegment?i=N dejaban de corresponder al m3u8 que ese player
+    // tenia → fragParsingError "Found no media in fragment" a los N
+    // segmentos, SOLO cuando la sesion original ya no estaba viva.
+    //
+    // Ahora: la clave es SOLO path|len|mtime (estable por archivo), cada
+    // indice tiene una VERSION (hash de 8 hex) que viaja en la URL de cada
+    // segmento (/localsegment?v=XXXX&i=N), y el servidor resuelve POR
+    // VERSION. Se conservan los ultimos MAX_LOCAL_INDEXES indices: si el
+    // usuario castea otra pelicula mientras un player todavia reproduce la
+    // anterior, ese player SIGUE recibiendo los bytes correctos.
+    // =================================================================
+    private class LocalIndexEntry(
+        val key: String,                       // "path|len|mtime"
+        val file: File,
+        val index: LocalMediaPlaylist.LocalIndex,
+        val version: String,                   // 8 hex — viaja en las URLs
+    )
+
     private val localIndexLock = Any()
-    private var localIndex: LocalMediaPlaylist.LocalIndex? = null
-    private var localIndexKey: String? = null
+    private val localIndexRegistry = LinkedHashMap<String, LocalIndexEntry>() // version → entry (LRU)
+    private var localIndexFailedKey: String? = null  // ultimo archivo cuya indexacion fallo (evita reintentar caro en cada request)
 
     // Callback que se invoca cuando llega un mensaje del PC
     var onMessage: ((JSONObject) -> Unit)? = null
@@ -279,7 +308,7 @@ class RemotePlayServer(
             // V6.4.2: nunca cachear — tras actualizar la app el PC debe recibir
             // SIEMPRE el player nuevo (el cache del browser era una fuente de
             // "reinstale y sigue igual").
-            resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+            addNoStoreHeaders(resp)
             resp
         } catch (e: Exception) {
             Log.e(TAG, "serveIndex: error leyendo index.html", e)
@@ -332,7 +361,7 @@ class RemotePlayServer(
             "application/json; charset=utf-8",
             json.toString()
         )
-        resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+        addNoStoreHeaders(resp)
         return resp
     }
 
@@ -354,7 +383,7 @@ class RemotePlayServer(
                 ByteArrayInputStream(data),
                 data.size.toLong()
             )
-            resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+            addNoStoreHeaders(resp)
             resp
         } catch (e: Exception) {
             Log.e(TAG, "serveAsset: error leyendo $path", e)
@@ -449,11 +478,43 @@ class RemotePlayServer(
      * - .mp4 → se sirve directo con soporte Range (el navegador lo reproduce
      *   nativo, seek instantáneo).
      * - .ts → m3u8 SINTÉTICO con segmentos AUTOCONTENIDOS (V6.4.1): cada
-     *   segmento se sirve por /localsegment?i=N con su PAT/PMT sintético
+     *   segmento se sirve por /localsegment?v=X&i=N con su PAT/PMT sintético
      *   (MPEG-TS) o su init via EXT-X-MAP (fMP4/CMAF). Cero internet: los
      *   bytes salen del disco del teléfono.
+     *
+     * V6.4.3: soporta ?v=<version> para servir el m3u8 de un archivo ESPECÍFICO
+     * del registro (le permite a un player re-pedir SU playlist aunque la
+     * sesión ya castee otra cosa). Sin ?v → el archivo actual de la sesión.
+     * Las URLs dentro del m3u8 son RELATIVAS (se resuelven contra el host por
+     * el que llegó el request — inmune a cambios de IP / doble interfaz
+     * Wi-Fi+hotspot) y VERSIONADAS (inmunes a cambios de sesión y a la caché
+     * del navegador del PC).
      */
     private fun serveLocalStream(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+        val params = session.parameters ?: emptyMap()
+        val vParam = params["v"]?.firstOrNull()
+
+        // 1) ¿Pidieron el m3u8 de una versión específica del registro?
+        val entry = if (!vParam.isNullOrBlank()) findEntryByVersion(vParam) else null
+        if (entry != null) {
+            Log.i(
+                TAG,
+                "serveLocalStream: m3u8 POR VERSIÓN v=${entry.version} " +
+                    "(${entry.file.name}, ${entry.index.segments.size} segmentos)"
+            )
+            val resp = newFixedLengthResponse(
+                NanoHTTPD.Response.Status.OK,
+                "application/vnd.apple.mpegurl",
+                LocalMediaPlaylist.buildM3u8(entry.index, entry.version)
+            )
+            addNoStoreHeaders(resp)
+            return resp
+        }
+        if (!vParam.isNullOrBlank()) {
+            Log.w(TAG, "serveLocalStream: versión v=$vParam desconocida — cayendo al archivo actual de la sesión")
+        }
+
+        // 2) Sin versión (o desconocida) → archivo ACTUAL de la sesión.
         val path = RemotePlayState.localFilePath
         if (path.isNullOrBlank()) {
             Log.e(TAG, "serveLocalStream: no hay localFilePath")
@@ -477,33 +538,34 @@ class RemotePlayServer(
             Log.i(TAG, "serveLocalStream: sirviendo MP4 local directo (${file.length()} bytes)")
             serveFileRange(file, session, "video/mp4")
         } else {
-            val baseUrl = RemotePlayState.serverUrl.value ?: "http://localhost:8080"
-            val index = getLocalIndex(file)
-            if (index != null) {
-                // V6.4.1: m3u8 con segmentos AUTOCONTENIDOS — cada /localsegment?i=N
-                // lleva su propio PAT/PMT sintetico (TS) o su init via EXT-X-MAP (fMP4).
-                // Esto arregla el fragParsingError ("Found no media in fragment N")
-                // que cortaba la reproduccion a los 2-3s con los byteranges crudos.
-                val m3u8 = LocalMediaPlaylist.buildM3u8(index, baseUrl)
+            val currentEntry = getLocalIndexEntry(file)
+            if (currentEntry != null) {
+                // V6.4.1: m3u8 con segmentos AUTOCONTENIDOS — cada
+                // /localsegment?v=X&i=N lleva su propio PAT/PMT sintético (TS)
+                // o su init via EXT-X-MAP (fMP4). Esto arregla el
+                // fragParsingError ("Found no media in fragment N") de los
+                // byteranges crudos.
+                val m3u8 = LocalMediaPlaylist.buildM3u8(currentEntry.index, currentEntry.version)
                 Log.i(
                     TAG,
-                    "serveLocalStream: m3u8 ${index.segments.size} segmentos autocontenidos " +
-                        "(fmp4=${index.isFmp4}, prologo=${index.tsPrologue?.size ?: 0}B, " +
-                        "total=${"%.1f".format(index.totalDurationSec)}s)"
+                    "serveLocalStream: m3u8 ${currentEntry.index.segments.size} segmentos autocontenidos " +
+                        "v=${currentEntry.version} (fmp4=${currentEntry.index.isFmp4}, " +
+                        "prologo=${currentEntry.index.tsPrologue?.size ?: 0}B, " +
+                        "total=${"%.1f".format(currentEntry.index.totalDurationSec)}s)"
                 )
                 val resp = newFixedLengthResponse(
                     NanoHTTPD.Response.Status.OK,
                     "application/vnd.apple.mpegurl",
                     m3u8
                 )
-                resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+                addNoStoreHeaders(resp)
                 resp
             } else {
                 // Ultimo recurso: byteranges crudos (comportamiento V6.4.0)
                 Log.w(TAG, "serveLocalStream: indice no disponible — fallback byterange")
                 val legacy = LocalMediaPlaylist.buildLegacyByterangeM3u8(
                     file,
-                    "$baseUrl/localfile",
+                    "localfile",
                     RemotePlayState.currentDuration
                 )
                 val resp = newFixedLengthResponse(
@@ -511,7 +573,7 @@ class RemotePlayServer(
                     "application/vnd.apple.mpegurl",
                     legacy
                 )
-                resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+                addNoStoreHeaders(resp)
                 resp
             }
         }
@@ -519,74 +581,121 @@ class RemotePlayServer(
 
     /**
      * /localfile — sirve los bytes del archivo descargado. Endpoint usado por
-     * el modo .mp4 nativo (con Range). En V6.4.1 los segmentos TS/fMP4 se
-     * sirven por /localsegment (autocontenidos), no por aqui.
+     * el fallback legacy (byteranges) y el modo .mp4 nativo (con Range).
+     * V6.4.3: soporta ?v=<version> para resolver el archivo desde el registro
+     * (independiente de la sesión); sin ?v → archivo actual de la sesión.
      */
     private fun serveLocalFile(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        val path = RemotePlayState.localFilePath
-        if (path.isNullOrBlank()) {
-            return newFixedLengthResponse(
-                NanoHTTPD.Response.Status.SERVICE_UNAVAILABLE,
-                "application/json",
-                "{\"error\":\"No hay archivo local cargado\"}"
-            )
+        val params = session.parameters ?: emptyMap()
+        val vParam = params["v"]?.firstOrNull()
+        val entry = if (!vParam.isNullOrBlank()) findEntryByVersion(vParam) else null
+
+        val file: File
+        if (entry != null) {
+            file = entry.file
+        } else {
+            val path = RemotePlayState.localFilePath
+            if (path.isNullOrBlank()) {
+                return newFixedLengthResponse(
+                    NanoHTTPD.Response.Status.SERVICE_UNAVAILABLE,
+                    "application/json",
+                    "{\"error\":\"No hay archivo local cargado\"}"
+                )
+            }
+            file = File(path)
         }
-        val file = File(path)
         if (!file.exists() || file.length() <= 0L) {
-            Log.e(TAG, "serveLocalFile: archivo no existe: $path")
+            Log.e(TAG, "serveLocalFile: archivo no existe: ${file.path}")
             return newFixedLengthResponse(
                 NanoHTTPD.Response.Status.NOT_FOUND,
                 "text/plain",
                 "404 archivo no encontrado"
             )
         }
-        val mimeType = if (path.endsWith(".mp4", ignoreCase = true)) "video/mp4" else "video/mp2t"
+        val mimeType = if (file.name.endsWith(".mp4", ignoreCase = true)) "video/mp4" else "video/mp2t"
         return serveFileRange(file, session, mimeType)
     }
 
+    // =================================================================
+    // WLFMOVIE V6.4.3: registro de indices por identidad de archivo
+    // =================================================================
+
+    /** Identidad estable del archivo: path|len|mtime. */
+    private fun fileIdentityKey(file: File): String =
+        "${file.absolutePath}|${file.length()}|${file.lastModified()}"
+
+    /** Version de 8 hex que viaja en las URLs — derivada de la identidad. */
+    private fun versionOf(key: String): String =
+        String.format(Locale.US, "%08x", key.hashCode().toLong() and 0xFFFFFFFFL)
+
     /**
-     * Indice de segmentos del archivo local (cache por path+tamano+mtime+duracion).
-     * Lo usa /stream (para generar el m3u8) y /localsegment (para servir bytes).
-     * La duracion entra en la clave: si el player la resuelve despues del
-     * primer intento, el indice se reconstruye con datos mejores.
+     * Indice de segmentos del archivo local, cacheado en el registro por
+     * IDENTIDAD (path|len|mtime) — sin valores mutables en la clave (V6.4.2
+     * metia currentDuration en la clave y eso cambiaba con cada reporte del
+     * PC, reconstruyendo el indice en plena reproduccion).
+     * Conserva los ultimos MAX_LOCAL_INDEXES archivos (LRU): un player que
+     * sigue descargando segmentos versionados sigue recibiendo SUS bytes
+     * aunque la sesion ya castee otra pelicula.
      */
-    private fun getLocalIndex(file: File): LocalMediaPlaylist.LocalIndex? {
-        val key = "${file.absolutePath}|${file.length()}|${file.lastModified()}|${RemotePlayState.currentDuration}"
+    private fun getLocalIndexEntry(file: File): LocalIndexEntry? {
+        val key = fileIdentityKey(file)
         synchronized(localIndexLock) {
-            if (localIndexKey == key) return localIndex
+            // Cache hit por identidad de archivo
+            for (e in localIndexRegistry.values) {
+                if (e.key == key) return e
+            }
+            // Indexacion que ya fallo para ESTE archivo → no reintentar caro
+            if (localIndexFailedKey == key) return null
+
             val index = LocalMediaPlaylist.buildIndex(file, RemotePlayState.currentDuration)
-            localIndex = index
-            localIndexKey = key
-            return index
+            if (index == null) {
+                Log.w(TAG, "getLocalIndexEntry: no se pudo indexar ${file.name} — fallback byterange por ahora")
+                localIndexFailedKey = key
+                return null
+            }
+            localIndexFailedKey = null
+            val version = versionOf(key)
+            val entry = LocalIndexEntry(key, file, index, version)
+            localIndexRegistry[version] = entry
+            while (localIndexRegistry.size > MAX_LOCAL_INDEXES) {
+                val eldest = localIndexRegistry.keys.first() ?: break
+                localIndexRegistry.remove(eldest)
+            }
+            return entry
         }
     }
 
+    /** Busca un indice del registro por su version (la que viaja en la URL). */
+    private fun findEntryByVersion(version: String): LocalIndexEntry? {
+        synchronized(localIndexLock) {
+            return localIndexRegistry[version]
+        }
+    }
+
+    /** Headers anti-caché para TODAS las respuestas del modo local. */
+    private fun addNoStoreHeaders(resp: NanoHTTPD.Response) {
+        resp.addHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
+        resp.addHeader("Pragma", "no-cache")
+        resp.addHeader("Expires", "0")
+    }
+
     /**
-     * /localsegment?i=N — sirve el segmento N del archivo local (V6.4.1):
-     * - TS: prologo PAT+PMT SINTETICO + los bytes del segmento → cada
+     * /localsegment?v=X&i=N — sirve el segmento N del archivo local (V6.4.1):
+     * - TS: prologo PAT+PMT VERBATIM + los bytes del segmento → cada
      *   segmento es un segmento HLS TS valido por si mismo (autocontenido,
      *   igual que un HLS real). Arregla el fragParsingError de la V6.4.0.
      * - fMP4: los bytes del grupo de fragmentos (el init va aparte, con i=init).
+     *
+     * V6.4.3: si la URL trae ?v=<version>, el archivo y el indice se resuelven
+     * POR VERSION desde el registro — INDEPENDIENTE del estado de la sesión
+     * de cast. Este es el corazon del fix: los bytes servidos siempre
+     * corresponden al m3u8 que el player tiene en la mano, aunque la sesión
+     * se re-castee, cambie de pelicula o se reinicie. Sin ?v (compat): se usa
+     * el archivo actual de la sesión.
      */
     private fun serveLocalSegment(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        val path = RemotePlayState.localFilePath
-        if (path.isNullOrBlank()) {
-            return newFixedLengthResponse(
-                NanoHTTPD.Response.Status.SERVICE_UNAVAILABLE,
-                "application/json",
-                "{\"error\":\"No hay archivo local cargado\"}"
-            )
-        }
-        val file = File(path)
-        if (!file.exists() || file.length() <= 0L) {
-            return newFixedLengthResponse(
-                NanoHTTPD.Response.Status.NOT_FOUND,
-                "text/plain",
-                "404 archivo no encontrado"
-            )
-        }
-
         val params = session.parameters ?: emptyMap()
+        val vParam = params["v"]?.firstOrNull()
         val iParam = params["i"]?.firstOrNull()
         if (iParam.isNullOrBlank()) {
             return newFixedLengthResponse(
@@ -596,13 +705,51 @@ class RemotePlayServer(
             )
         }
 
-        val index = getLocalIndex(file) ?: run {
-            return newFixedLengthResponse(
-                NanoHTTPD.Response.Status.SERVICE_UNAVAILABLE,
-                "text/plain",
-                "503 archivo local no indexable"
-            )
+        // V6.4.3: resolucion del archivo — POR VERSION primero, sesion despues.
+        val entry: LocalIndexEntry?
+        if (!vParam.isNullOrBlank()) {
+            entry = findEntryByVersion(vParam)
+            if (entry == null) {
+                // Version expulsada del registro LRU (el usuario casteo 3+
+                // peliculas mas) o de una sesion anterior. NUNCA servir bytes
+                // de OTRO archivo con esta URL: 404 claro y el player recarga.
+                Log.w(TAG, "serveLocalSegment: version v=$vParam i=$iParam NO esta en el registro — 404")
+                return newFixedLengthResponse(
+                    NanoHTTPD.Response.Status.NOT_FOUND,
+                    "text/plain",
+                    "404 version $vParam desconocida — recarga /stream"
+                )
+            }
+        } else {
+            val path = RemotePlayState.localFilePath
+            if (path.isNullOrBlank()) {
+                Log.w(TAG, "serveLocalSegment: sin ?v y sin archivo en la sesion — 503")
+                return newFixedLengthResponse(
+                    NanoHTTPD.Response.Status.SERVICE_UNAVAILABLE,
+                    "application/json",
+                    "{\"error\":\"No hay archivo local cargado\"}"
+                )
+            }
+            val file = File(path)
+            if (!file.exists() || file.length() <= 0L) {
+                Log.w(TAG, "serveLocalSegment: archivo de la sesion no existe: $path — 404")
+                return newFixedLengthResponse(
+                    NanoHTTPD.Response.Status.NOT_FOUND,
+                    "text/plain",
+                    "404 archivo no encontrado"
+                )
+            }
+            entry = getLocalIndexEntry(file) ?: run {
+                return newFixedLengthResponse(
+                    NanoHTTPD.Response.Status.SERVICE_UNAVAILABLE,
+                    "text/plain",
+                    "503 archivo local no indexable"
+                )
+            }
         }
+
+        val file = entry.file
+        val index = entry.index
 
         // Segmento de inicializacion fMP4 (EXT-X-MAP)
         if (iParam == "init") {
@@ -626,7 +773,7 @@ class RemotePlayServer(
                 stream,
                 len
             )
-            resp.addHeader("Cache-Control", "no-store")
+            addNoStoreHeaders(resp)
             return resp
         }
 
@@ -638,6 +785,7 @@ class RemotePlayServer(
             )
         }
         if (i < 0 || i >= index.segments.size) {
+            Log.w(TAG, "serveLocalSegment: i=$i fuera de rango (total=${index.segments.size}) v=${entry.version}")
             return newFixedLengthResponse(
                 NanoHTTPD.Response.Status.NOT_FOUND,
                 "text/plain",
@@ -645,6 +793,15 @@ class RemotePlayServer(
             )
         }
         val seg = index.segments[i]
+
+        // Log compacto: init, primer segmento, cada 100 y el ultimo
+        if (i == 0 || i == index.segments.size - 1 || i % 100 == 0) {
+            Log.i(
+                TAG,
+                "serveLocalSegment: v=${entry.version} i=$i/${index.segments.size} " +
+                    "off=${seg.offset} len=${seg.length} (${file.name})"
+            )
+        }
 
         if (index.isFmp4) {
             val stream = boundedFileInputStream(file, seg.offset, seg.length)
@@ -659,11 +816,11 @@ class RemotePlayServer(
                 stream,
                 seg.length
             )
-            resp.addHeader("Cache-Control", "no-store")
+            addNoStoreHeaders(resp)
             return resp
         }
 
-        // MPEG-TS: prologo sintetico (PAT+PMT) + bytes del archivo
+        // MPEG-TS: prologo verbatim (PAT+PMT) + bytes del archivo
         val prologue = index.tsPrologue
         val fileStream = boundedFileInputStream(file, seg.offset, seg.length)
             ?: return newFixedLengthResponse(
@@ -687,7 +844,7 @@ class RemotePlayServer(
                 seg.length
             )
         }
-        resp.addHeader("Cache-Control", "no-store")
+        addNoStoreHeaders(resp)
         return resp
     }
 

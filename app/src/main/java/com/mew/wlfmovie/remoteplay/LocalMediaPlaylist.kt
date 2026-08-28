@@ -7,7 +7,7 @@ import java.util.Locale
 import kotlin.math.ceil
 
 /**
- * WLFMOVIE V6.4.2 — Generador de playlist m3u8 SINTETICA para compartir una
+ * WLFMOVIE V6.4.3 — Generador de playlist m3u8 SINTETICA para compartir una
  * pelicula DESCARGADA al PC por la red local (sin internet).
  *
  * El archivo descargado por HLS es un `.ts` — concatenacion de segmentos:
@@ -39,7 +39,7 @@ import kotlin.math.ceil
  *   error. MediaSource readyState: ended" → muerte a los 2-3s. EXACTAMENTE
  *   el error reportado en PC con la V6.4.1.
  *
- * V6.4.2 (esta version):
+ * V6.4.2:
  *   1. DETECCION DE SYNC robusta: se busca la grilla real de paquetes
  *      (stride 188/192/204 + residuo) escaneando ventanas del archivo —
  *      soporta init CMAF mezclado con TS, basura inicial y M2TS. El primer
@@ -61,6 +61,26 @@ import kotlin.math.ceil
  *      init+TS), se intenta el camino TS antes de rendirse.
  *   6. Comentarios de version en el m3u8: abriendo /stream en el navegador
  *      del PC se ve QUE build lo sirvio (debug remoto sin adb).
+ *
+ * V6.4.3 (esta version) — desacople total del ciclo de vida de la sesion:
+ *   Los sintomas "con la pestaña de enviar-descarga abierta /stream anda
+ *   perfecto, pero en otro player muere en el fragmento 23/24/25 con
+ *   fragParsingError" venian de DOS lados:
+ *   a) El m3u8 incrustaba URLs ABSOLUTAS con la IP del telefono — si la IP
+ *      cambiaba o habia dos interfaces (Wi-Fi + hotspot), los segmentos
+ *      apuntaban al host equivocado mientras /stream habia llegado por el
+ *      bueno. Ahora las URLs son RELATIVAS.
+ *   b) El indice cacheado se key-eaba con `currentDuration` — un valor que
+ *      se REESCRIBE en cada reporte de posicion del PC (updateRemotePosition)
+ *      → el indice se reconstruia en plena reproduccion, y el archivo a
+ *      servir se resolvia por estado de SESION (localFilePath), no por el
+ *      m3u8 que el player tenia. Ahora: el server key-ea el indice SOLO por
+ *      identidad de archivo (path|len|mtime), le asigna una VERSION (hash)
+ *      que viaja en la URL de cada segmento, y sirve POR VERSION. Re-cast,
+ *      cambio de pelicula o reset de estado ya no pueden moverle el piso a un
+ *      player que esta reproduciendo. Y la URL unica por archivo hace
+ *      imposible que el navegador del PC reponga un m3u8/segmento viejo de
+ *      su cache (el "fantasma" de los 29s que el celular nunca vio).
  */
 object LocalMediaPlaylist {
 
@@ -153,24 +173,34 @@ object LocalMediaPlaylist {
     }
 
     /**
-     * Genera el m3u8 con URLs dedicadas por segmento:
-     *   {baseUrl}/localsegment?i=N        (N = 0..segments-1)
-     *   {baseUrl}/localsegment?i=init     (segmento de inicializacion fMP4)
+     * V6.4.3: genera el m3u8 con URLs RELATIVAS y VERSIONADAS:
+     *   localsegment?v=<version>&i=N        (N = 0..segments-1)
+     *   localsegment?v=<version>&i=init     (segmento de inicializacion fMP4)
+     *
+     * - RELATIVAS: se resuelven contra el host por el que el PC pidio /stream
+     *   (mata el bug de telefonos con Wi-Fi + hotspot activos a la vez: la IP
+     *   absoluta incrustada podia apuntar a la interfaz equivocada).
+     * - VERSIONADAS: [version] identifica al archivo (path|len|mtime). El server
+     *   resuelve el segmento POR VERSION — aunque la sesion de cast cambie,
+     *   se re-castee OTRA pelicula o el estado se reinicie, los bytes servidos
+     *   siempre corresponden al m3u8 que el player tiene en la mano. Ademas la
+     *   URL es unica por archivo → el navegador del PC jamas puede servir una
+     *   respuesta vieja de cache.
      */
-    fun buildM3u8(index: LocalIndex, baseUrl: String): String {
+    fun buildM3u8(index: LocalIndex, version: String): String {
         val sb = StringBuilder()
         sb.append("#EXTM3U\n")
-        sb.append("# WlfMovie V6.4.2 local-segments (autocontenido)\n")
+        sb.append("# WlfMovie V6.4.3 local-segments v=").append(version).append(" (autocontenido)\n")
         sb.append("#EXT-X-VERSION:6\n")
         sb.append("#EXT-X-PLAYLIST-TYPE:VOD\n")
         sb.append("#EXT-X-MEDIA-SEQUENCE:0\n")
         sb.append("#EXT-X-TARGETDURATION:").append(targetDuration(index.durationsSec)).append('\n')
         if (index.isFmp4 && index.fmp4InitEnd > 0L) {
-            sb.append("#EXT-X-MAP:URI=\"").append(baseUrl).append("/localsegment?i=init\"\n")
+            sb.append("#EXT-X-MAP:URI=\"localsegment?v=").append(version).append("&i=init\"\n")
         }
         for (i in index.segments.indices) {
             sb.append("#EXTINF:").append(String.format(Locale.US, "%.3f", index.durationsSec[i])).append(",\n")
-            sb.append(baseUrl).append("/localsegment?i=").append(i).append('\n')
+            sb.append("localsegment?v=").append(version).append("&i=").append(i).append('\n')
         }
         sb.append("#EXT-X-ENDLIST\n")
         return sb.toString()
@@ -213,7 +243,7 @@ object LocalMediaPlaylist {
 
         val sb = StringBuilder()
         sb.append("#EXTM3U\n")
-        sb.append("# WlfMovie V6.4.2 legacy-byterange (fallback — archivo no indexable)\n")
+        sb.append("# WlfMovie V6.4.3 legacy-byterange (fallback — archivo no indexable)\n")
         sb.append("#EXT-X-VERSION:4\n")
         sb.append("#EXT-X-PLAYLIST-TYPE:VOD\n")
         sb.append("#EXT-X-MEDIA-SEQUENCE:0\n")
