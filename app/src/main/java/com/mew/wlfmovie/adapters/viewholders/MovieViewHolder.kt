@@ -1251,7 +1251,17 @@ class MovieViewHolder(
             }
             is com.mew.wlfmovie.download.DownloadConverter.ConversionState.Failed -> {
                 card.visibility = android.view.View.VISIBLE
-                status.text = context.getString(R.string.conversion_status_failed)
+                // V6.4.5 build-fix 2: mostrar el MOTIVO del fallo (antes era
+                // un genérico). El detalle completo con etapa y stack va al
+                // "Errores recopilados" de Ajustes → Acerca de (solo debug).
+                status.text = if (state.reason.isNotBlank()) {
+                    context.getString(
+                        R.string.conversion_status_failed_reason,
+                        state.reason.take(80),
+                    )
+                } else {
+                    context.getString(R.string.conversion_status_failed)
+                }
                 spinner.visibility = android.view.View.GONE
                 progressBar.visibility = android.view.View.GONE
             }

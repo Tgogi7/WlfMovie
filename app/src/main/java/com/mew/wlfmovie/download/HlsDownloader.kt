@@ -1,6 +1,7 @@
 package com.mew.wlfmovie.download
 
 import android.util.Log
+import com.mew.wlfmovie.utils.CrashLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -42,7 +43,13 @@ import java.util.concurrent.atomic.AtomicLong
  *  4. Resume a nivel segmento: si la descarga falla y se re-arranca, los segmentos ya
  *     descargados en el dir temporal se reutilizan (chequeo de tamanno > 0).
  *  5. Concatena init + segmentos en orden al archivo final `.ts`.
- *  6. Limpia temp files.
+ *  6. WLFMOVIE V6.4.6: cada respuesta se VALIDA — si el CDN entregó una
+ *     imagen (PNG/JPEG/GIF) o una página HTML en lugar del segmento, se
+ *     rechaza y la descarga falla con un motivo claro. (Antes esa basura
+ *     se concatenaba sin más: salían .ts que arrancaban con firma PNG,
+ *     imposibles de reproducir/convertir y origen de los fragParsingError
+ *     históricos en el player del PC.)
+ *  7. Limpia temp files.
  *
  * WLFMOVIE V6.3.3 — FIX CRITICO "la descarga se pausa al final y no se guarda":
  *  En V6.3.1/V6.3.2 el ticker se lanzaba DENTRO de `coroutineScope { ... }` pero
@@ -112,6 +119,20 @@ class HlsDownloader(
          * 1080p), 128 KB reduce de ~80 syscalls a ~20 syscalls por segmento.
          */
         private const val IO_BUFFER = 128 * 1024
+
+        /**
+         * WLFMOVIE V6.4.6: cuántos bytes capturar del inicio de cada segmento
+         * para validarlo (ver [validateSegmentPayload]).
+         */
+        private const val SEGMENT_HEAD_CAPTURE = 1024
+
+        /**
+         * WLFMOVIE V6.4.6: tipos de caja ISO-BMFF aceptables al inicio de un
+         * segmento fMP4/CMAF (init = ftyp; media = moof/emsg/prft/...).
+         */
+        private val SEGMENT_VALID_BOXES = setOf(
+            "ftyp", "moof", "styp", "emsg", "prft", "free", "skip", "uuid", "mdat", "moov",
+        )
 
         /**
          * WLFMOVIE V6.3.2: Ventana de inactividad del watchdog. Si el total de
@@ -642,13 +663,135 @@ class HlsDownloader(
                 val body = resp.body ?: throw java.io.IOException("Empty body for $url")
                 FileOutputStream(targetFile).use { out ->
                     val input = body.byteStream()
-                    input.copyTo(out)
+                    // WLFMOVIE V6.4.6: capturar los primeros bytes para validar
+                    // que la respuesta sea video de verdad (ver
+                    // validateSegmentPayload). El resto se copia tal cual.
+                    val head = ByteArray(SEGMENT_HEAD_CAPTURE)
+                    var headLen = 0
+                    val buffer = ByteArray(IO_BUFFER)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read == -1) break
+                        if (headLen < head.size) {
+                            val take = minOf(read, head.size - headLen)
+                            System.arraycopy(buffer, 0, head, headLen, take)
+                            headLen += take
+                        }
+                        out.write(buffer, 0, read)
+                    }
                     out.flush()
+                    // WLFMOVIE V6.4.6: rechazar imágenes/HTML servidos por el CDN
+                    // en lugar del segmento. Lanza IOException con motivo claro →
+                    // el retry lo trata como cualquier fallo de segmento y si el
+                    // CDN siempre responde basura, la descarga FALLA en vez de
+                    // guardar un archivo inservible.
+                    validateSegmentPayload(
+                        url,
+                        head,
+                        headLen,
+                        targetFile.length(),
+                        resp.header("Content-Type"),
+                    )
                 }
             }
         } finally {
             if (activeCalls != null) activeCalls.remove(call)
         }
+    }
+
+    /**
+     * WLFMOVIE V6.4.6: valida que la respuesta de un "segmento" HLS sea de
+     * verdad video.
+     *
+     * Motivo: descubrimos (log del 2026-08-28) que algunos CDNs anti-leech
+     * responden HTTP 200 con una IMAGEN PNG en lugar del segmento TS/fMP4;
+     * el descargador las concatenaba sin más y el resultado era un .ts que
+     * arrancaba con la firma "PNG/IHDR" — imposible de reproducir y de
+     * convertir ("Failed to instantiate extractor"), y origen de los
+     * fragParsingError del player del PC.
+     *
+     * Acepta:
+     *  - MPEG-TS: sync 0x47 en el byte 0 con corrida de syncs a stride 188
+     *    (se admite un resync corto dentro del primer KB).
+     *  - fMP4/CMAF: caja ISO-BMFF al inicio con tipo conocido
+     *    (ftyp/moof/styp/emsg/...).
+     *
+     * Rechaza con motivo claro: PNG, JPEG, GIF, HTML y cualquier otra cosa.
+     * El rechazo se registra en el CrashLogger (debug) con URL y volcado hex
+     * para poder diagnosticar patrones del CDN.
+     */
+    private fun validateSegmentPayload(
+        url: String,
+        head: ByteArray,
+        headLen: Int,
+        fileLen: Long,
+        contentType: String?,
+    ) {
+        if (fileLen <= 0L) {
+            throw java.io.IOException("El servidor respondió un segmento vacío: $url")
+        }
+        if (headLen <= 0) return // sin datos capturados; no se puede validar
+
+        // ¿Basura conocida? Identificar PRIMERO — ojo: GIF también empieza
+        // con 0x47, hay que descartarlo antes del chequeo de sync TS.
+        fun junkKind(): String? = when {
+            headLen >= 4 && head[0] == 0x89.toByte() && head[1] == 0x50.toByte() &&
+                head[2] == 0x4E.toByte() && head[3] == 0x47.toByte() -> "una imagen PNG"
+            headLen >= 3 && head[0] == 0xFF.toByte() && head[1] == 0xD8.toByte() &&
+                head[2] == 0xFF.toByte() -> "una imagen JPEG"
+            headLen >= 4 && head[0] == 0x47.toByte() && head[1] == 0x49.toByte() &&
+                head[2] == 0x46.toByte() && head[3] == 0x38.toByte() -> "una imagen GIF"
+            head[0] == '<'.code.toByte() -> "una página HTML"
+            else -> null
+        }
+
+        // ¿MPEG-TS? Sync 0x47 en 0/188 (+376 si alcanza), o resync corto.
+        fun looksLikeTs(): Boolean {
+            if (head[0] == 0x47.toByte()) {
+                // Archivo más chico que 2 paquetes: con un sync basta.
+                if (headLen < 2 * 188 + 1) return true
+                // Exigir sync también en +188 (y +376 si el buffer alcanza):
+                // (1/256)^2-3 de falso positivo sobre datos aleatorios.
+                if (head[188] != 0x47.toByte()) return false
+                return headLen < 3 * 188 + 1 || head[376] == 0x47.toByte()
+            }
+            // ¿Basura corta antes del primer paquete? Buscar corrida de 4.
+            if (headLen >= 4 * 188 + 1) {
+                for (i in 0..(headLen - 4 * 188)) {
+                    if (head[i] == 0x47.toByte() && head[i + 188] == 0x47.toByte() &&
+                        head[i + 376] == 0x47.toByte() && head[i + 564] == 0x47.toByte()
+                    ) {
+                        return true
+                    }
+                }
+            }
+            return false
+        }
+
+        // ¿fMP4/CMAF? Caja ISO-BMFF al inicio (tipo en offset 4).
+        fun looksLikeFmp4(): Boolean {
+            if (headLen < 8) return false
+            val box = String(head, 4, 4, Charsets.US_ASCII)
+            return box in SEGMENT_VALID_BOXES
+        }
+
+        if (looksLikeTs() || looksLikeFmp4()) return // video de verdad
+
+        // Basura → error claro con volcado para el log.
+        val kind = junkKind() ?: "contenido que no es video"
+        val hex = (0 until minOf(headLen, 16)).joinToString(" ") {
+            String.format(java.util.Locale.US, "%02x", head[it].toInt() and 0xFF)
+        }
+        CrashLogger.logError(
+            tag = TAG,
+            message = "Segmento rechazado: el servidor respondió $kind en lugar de " +
+                "video (content-type=${contentType ?: "?"}, ${fileLen}B) — $url head=$hex",
+            context = "validación de segmentos HLS",
+        )
+        throw java.io.IOException(
+            "El servidor respondió $kind en lugar del segmento de video " +
+                "(protección anti-descarga o enlace vencido; prueba con otro servidor). [$url]"
+        )
     }
 
     private fun applyHeaders(builder: Request.Builder, headersJson: String) {

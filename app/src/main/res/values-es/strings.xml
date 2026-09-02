@@ -620,4 +620,8 @@
     <string name="conversion_status_queued">En cola para convertir (posición %1$d)</string>
     <string name="conversion_status_completed">MP4 listo</string>
     <string name="conversion_status_failed">No se pudo convertir a MP4 — se enviará al PC como TS</string>
+    <string name="conversion_status_failed_reason">No se pudo convertir a MP4 — se enviará al PC como TS (%1$s)</string>
+
+    <!-- WLFMOVIE V6.4.7: watchdog de arranque offline -->
+    <string name="offline_playback_stall_toast">El video descargado no arranca (MP4 dañado). El error quedó registrado: Ajustes → Acerca de → Errores recopilados</string>
 </resources>

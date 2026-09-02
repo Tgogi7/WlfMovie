@@ -94,6 +94,7 @@ import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.mew.wlfmovie.utils.DnsResolver
 import com.mew.wlfmovie.utils.NetworkClient
 import com.mew.wlfmovie.utils.EpisodeManager
+import com.mew.wlfmovie.utils.CrashLogger
 import com.mew.wlfmovie.utils.PlayerGestureHelper
 import com.mew.wlfmovie.utils.UserDataCache.toEpisode
 import com.mew.wlfmovie.utils.UserDataCache.toMovie
@@ -113,6 +114,8 @@ import android.app.Dialog
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -145,6 +148,17 @@ class PlayerMobileFragment : Fragment() {
     private lateinit var progressHandler: android.os.Handler
     private lateinit var progressRunnable: Runnable
     private var gestureHelper: PlayerGestureHelper? = null  // WLFMOVIE: deshabilitado, en Parte 3 se reemplaza
+
+    // WLFMOVIE V6.4.7: watchdog de reproducción offline — si un archivo
+    // descargado (p.ej. un MP4 convertido con timeline roto) queda
+    // eternamente en BUFFERING sin llegar NUNCA a READY, se registra en el
+    // recopilador de errores de debug (Ajustes → Acerca de) y se avisa al
+    // usuario. Es el mismo principio del diagnóstico de conversión: sin
+    // datos, estos fallos son invisibles.
+    private var offlineFirstReadyReached = false
+    private var offlineStallLogged = false
+    private val offlineStallHandler = Handler(Looper.getMainLooper())
+    private var offlineStallRunnable: Runnable? = null
 
     private var servers = listOf<Video.Server>()
     private var zoomToast: Toast? = null
@@ -635,6 +649,7 @@ class PlayerMobileFragment : Fragment() {
         } catch (e: Exception) {
             Log.e("WlfMovie", "Error en onDestroyView (no crítico): ${e.message}")
         }
+        cancelOfflineStallCheck()
         releasePlayer()
         try {
             requireContext().unregisterReceiver(chooserReceiver)
@@ -1113,6 +1128,20 @@ class PlayerMobileFragment : Fragment() {
                 super.onPlaybackStateChanged(state)
                 // WLFMOVIE: Mostrar/ocultar spinner de buffering personalizado
                 updateBufferingState(state == Player.STATE_BUFFERING)
+                // WLFMOVIE V6.4.7: watchdog de arranque offline. Solo cuenta
+                // la PRIMERA transición a READY de este video: si nunca llega
+                // y sigue en BUFFERING, algo anda mal con el archivo.
+                if (state == Player.STATE_READY) {
+                    offlineFirstReadyReached = true
+                    cancelOfflineStallCheck()
+                } else if (
+                    state == Player.STATE_BUFFERING &&
+                    viewModel.isPlayingOffline &&
+                    !offlineFirstReadyReached &&
+                    !offlineStallLogged
+                ) {
+                    scheduleOfflineStallCheck()
+                }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -1218,7 +1247,25 @@ class PlayerMobileFragment : Fragment() {
             override fun onPlayerError(error: PlaybackException) {
                 super.onPlayerError(error)
                 Log.e("PlayerMobileFragment", "onPlayerError: ", error)
-                
+                cancelOfflineStallCheck()
+
+                // WLFMOVIE V6.4.7: en offline no hay "siguiente server" al
+                // que caer — el fallo se registra para diagnóstico (antes
+                // quedaba completamente invisible).
+                if (viewModel.isPlayingOffline) {
+                    val f = File(currentVideo?.source?.removePrefix("file://") ?: "")
+                    CrashLogger.logError(
+                        tag = "PlayerOffline",
+                        message = "movie=${(args.videoType as? Video.Type.Movie)?.id ?: args.id} " +
+                            "archivo=${f.name} existe=${f.exists()} " +
+                            "tam=${if (f.exists()) f.length() else -1}B " +
+                            "error de reproducción offline: ${error.errorCodeName}: " +
+                            "${error.message?.take(120)}",
+                        throwable = error,
+                        context = "reproducción offline",
+                    )
+                }
+
                 val nextServer = servers.getOrNull(servers.indexOf(currentServer) + 1)
                 if (nextServer != null) {
                     Log.i("PlayerMobileFragment", "Playback failed, trying next server: ${nextServer.name}")
@@ -1280,6 +1327,12 @@ class PlayerMobileFragment : Fragment() {
         } else {
             player.seekTo(currentPosition)
         }
+
+        // WLFMOVIE V6.4.7: reset del watchdog de arranque offline para el
+        // video que empieza ahora.
+        offlineFirstReadyReached = false
+        offlineStallLogged = false
+        cancelOfflineStallCheck()
 
         player.prepare()
         player.play()
@@ -2074,6 +2127,59 @@ class PlayerMobileFragment : Fragment() {
 
     private fun updateBufferingState(isBuffering: Boolean) {
         wlfBufferingSpinner?.visibility = if (isBuffering) View.VISIBLE else View.GONE
+    }
+
+    // =================================================================
+    // WLFMOVIE V6.4.7: watchdog de arranque offline
+    // =================================================================
+
+    /**
+     * Agenda (una sola vez) el chequeo de arranque offline: si dentro de
+     * 15s el player SIGUE en BUFFERING y nunca llegó a READY, registrar el
+     * fallo en el recopilador de debug y avisar al usuario.
+     */
+    private fun scheduleOfflineStallCheck() {
+        if (offlineStallRunnable != null) return
+        val r = Runnable {
+            offlineStallRunnable = null
+            val stillBuffering = runCatching {
+                isAdded && this::player.isInitialized &&
+                    player.playbackState == Player.STATE_BUFFERING
+            }.getOrDefault(false)
+            if (!offlineFirstReadyReached && !offlineStallLogged &&
+                viewModel.isPlayingOffline && stillBuffering
+            ) {
+                offlineStallLogged = true
+                val f = File(currentVideo?.source?.removePrefix("file://") ?: "")
+                val durMs = runCatching { player.duration }.getOrDefault(-2L)
+                val posMs = runCatching { player.currentPosition }.getOrDefault(-2L)
+                val bufMs = runCatching { player.bufferedPosition }.getOrDefault(-2L)
+                CrashLogger.logError(
+                    tag = "PlayerOffline",
+                    message = "movie=${(args.videoType as? Video.Type.Movie)?.id ?: args.id} " +
+                        "archivo=${f.name} existe=${f.exists()} " +
+                        "tam=${if (f.exists()) f.length() else -1}B " +
+                        "15s en BUFFERING sin arrancar (sospecha de MP4 con " +
+                        "timeline roto) | dur=${durMs}ms pos=${posMs}ms " +
+                        "buffered=${bufMs}ms",
+                    context = "reproducción offline",
+                )
+                runCatching {
+                    Toast.makeText(
+                        requireContext(),
+                        R.string.offline_playback_stall_toast,
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+        }
+        offlineStallRunnable = r
+        offlineStallHandler.postDelayed(r, 15_000L)
+    }
+
+    private fun cancelOfflineStallCheck() {
+        offlineStallRunnable?.let { offlineStallHandler.removeCallbacks(it) }
+        offlineStallRunnable = null
     }
 
     // =================================================================

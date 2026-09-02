@@ -634,4 +634,8 @@
     <string name="conversion_status_queued">In queue to convert (position %1$d)</string>
     <string name="conversion_status_completed">MP4 ready</string>
     <string name="conversion_status_failed">Could not convert to MP4 — it will be sent to the PC as TS</string>
+    <string name="conversion_status_failed_reason">Could not convert to MP4 — it will be sent to the PC as TS (%1$s)</string>
+
+    <!-- WLFMOVIE V6.4.7: watchdog de arranque offline -->
+    <string name="offline_playback_stall_toast">The downloaded video won\'t start (broken MP4). The error was logged — Settings → About → Collected errors</string>
 </resources>
