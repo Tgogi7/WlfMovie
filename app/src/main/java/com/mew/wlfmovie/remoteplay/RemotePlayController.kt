@@ -7,6 +7,7 @@ import android.util.Log
 import com.mew.wlfmovie.database.AppDatabase
 import com.mew.wlfmovie.models.Video
 import com.mew.wlfmovie.models.WatchItem
+import com.mew.wlfmovie.utils.CrashLogger
 import com.mew.wlfmovie.utils.UserDataCache
 import com.mew.wlfmovie.utils.UserPreferences
 import kotlinx.coroutines.CoroutineScope
@@ -15,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import java.io.File
 
 /**
  * Orquestador del RemotePlay.
@@ -39,6 +41,7 @@ object RemotePlayController {
     private var appContext: Context? = null
     private val controllerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var syncJob: Job? = null
+    private var prepareJob: Job? = null
     private var lastSavedPosition = -1L
     private var lastSavedIsPlaying = false
 
@@ -117,6 +120,80 @@ object RemotePlayController {
         RemotePlayState.setState(RemotePlayState.ConnectionState.WAITING)
         Log.i(TAG, "start: server levantado en $url")
 
+        // WLFMOVIE V6.5.0: preparación EN CALIENTE del .ts local. La caminata
+        // de purga (corridas limpias + discontinuidades) lee el archivo
+        // completo — puede tardar varios segundos en un .ts de 2GB. Dispararla
+        // AHORA (en cuanto el usuario toca "Enviar al PC") hace que el
+        // /stream del navegador casi siempre encuentre el índice listo, y la
+        // UI muestra el avance mientras el usuario abre la URL en el PC.
+        if (isLocalFile && RemotePlayState.localFilePath?.endsWith(".ts", ignoreCase = true) == true) {
+            val localPath = RemotePlayState.localFilePath
+            if (localPath != null) {
+                prepareJob?.cancel()
+                prepareJob = controllerScope.launch(Dispatchers.IO) {
+                    RemotePlayState.updateLocalPrep(0)
+                    val entry = try {
+                        newServer.prepareLocalFile(File(localPath)) { frac ->
+                            RemotePlayState.updateLocalPrep((frac * 100f).toInt().coerceIn(0, 100))
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "prepareLocalFile: error", e)
+                        null
+                    }
+                    RemotePlayState.updateLocalPrep(if (entry != null) 100 else -1)
+                    val idx = entry?.index
+                    // V6.5.2: capa del audio MPEG — Layer I/II (MP2) NO se puede
+                    // decodificar en NINGÚN navegador (hls.js lo entrega crudo y el
+                    // decodificador Layer III del navegador lo vuelve ruido grave y
+                    // distorsionado).
+                    // V6.6.0: la conversión a MP4 (y la re-codificación de audio a
+                    // AAC) fue ELIMINADA por decisión del usuario — ya NO existe
+                    // como salida. El aviso ahora es honesto: sin re-codificar no
+                    // hay arreglo posible en el navegador; la alternativa es
+                    // descargar esa película del servidor que entrega MP4 (Remux)
+                    // — ese archivo el navegador lo reproduce perfecto, audio
+                    // incluido (es exactamente lo que pasa al ver online).
+                    val audioLayer = idx?.audioMpegLayer ?: 0
+                    val audioNote = when (audioLayer) {
+                        2, 3 ->
+                            " ATENCIÓN: el audio de esta película es MP2 (MPEG Layer " +
+                                (if (audioLayer == 2) "II" else "I") +
+                                ") y NINGÚN navegador lo puede decodificar — en el PC se oirá " +
+                                "grave y distorsionado aunque el video se vea perfecto " +
+                                "(en el celular suena normal). V6.6.0 ya no convierte ni " +
+                                "re-codifica audio, así que no hay arreglo en el navegador " +
+                                "para este .ts. Alternativa sin convertir nada: descargar " +
+                                "esta película del servidor que entrega MP4 (Remux) y " +
+                                "volver a enviarla — ese sí se oye perfecto en el PC."
+                        1 -> " (audio MP3: el navegador sí lo reproduce)."
+                        else -> ""
+                    }
+                    if (idx != null &&
+                        (idx.junkRuns > 0 || idx.clockBreaks > 0 || audioNote.isNotEmpty())
+                    ) {
+                        val title = when (videoType) {
+                            is Video.Type.Movie -> videoType.title
+                            is Video.Type.Episode -> "${videoType.tvShow.title} S${videoType.season.number}E${videoType.number}"
+                            else -> "?"
+                        }
+                        val junkNote = if (idx.junkRuns > 0 || idx.clockBreaks > 0) {
+                            "el .ts trae basura intercalada — se saltarán ${idx.junkBytes} B en " +
+                                "${idx.junkRuns} huecos y se marcarán ${idx.clockBreaks} saltos de " +
+                                "reloj como discontinuidades (el navegador rebasa el timeline y " +
+                                "sigue reproduciendo en vez de congelarse en el hueco)."
+                        } else {
+                            "el .ts está limpio (sin basura ni saltos de reloj)."
+                        }
+                        CrashLogger.logError(
+                            tag = TAG,
+                            message = "ENVIAR-PC «$title»: $junkNote$audioNote",
+                            context = "envío al PC",
+                        )
+                    }
+                }
+            }
+        }
+
         // Arrancar sync de posición cada 10s (automático, sin necesidad de back/stop)
         startPositionSync()
 
@@ -142,6 +219,10 @@ object RemotePlayController {
         // Detener sync
         syncJob?.cancel()
         syncJob = null
+        // Detener la preparación en caliente (si seguía caminando)
+        prepareJob?.cancel()
+        prepareJob = null
+        RemotePlayState.updateLocalPrep(-1)
         lastSavedPosition = -1L
         lastSavedIsPlaying = false
         // Detener server + estado

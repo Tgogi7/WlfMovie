@@ -143,23 +143,8 @@ class MovieViewHolder(
     private var pbDownloadInlineProgress: android.widget.ProgressBar? = null
     private var btnDownloadCancelInline: android.widget.TextView? = null
 
-    // WLFMOVIE V6.4.5: Estado de conversión TS→MP4 observado en detalles
-    // (DownloadConverter). Igual que currentDownloadState pero para la cola
-    // de conversión: Queued(posición) / Converting(%) / Completed / Failed.
-    private var currentConversionState: com.mew.wlfmovie.download.DownloadConverter.ConversionState =
-        com.mew.wlfmovie.download.DownloadConverter.ConversionState.Idle
-
-    // WLFMOVIE V6.4.5: Cache de la tarjeta de conversión en detalles
-    // (ll_conversion_progress, debajo de la de descarga). Visible SOLO cuando
-    // la película está en la cola de conversión a MP4.
-    private var llConversionProgress: android.view.View? = null
-    private var tvConversionStatus: android.widget.TextView? = null
-    private var pbConversionInlineSpinner: android.widget.ProgressBar? = null
-    private var pbConversionInlineProgress: android.widget.ProgressBar? = null
-
-    // WLFMOVIE V6.4.5: Job del collector de estado de conversión (se cancela
-    // y re-registra en cada bind, igual que downloadProgressJob).
-    private var conversionStateJob: kotlinx.coroutines.Job? = null
+    // WLFMOVIE V6.6.0: el estado de conversión TS→MP4 y su tarjeta en detalles
+    // fueron ELIMINADOS junto con DownloadConverter — ya no existe conversión.
 
     companion object {
         private const val KEY_PREFERRED_PLAYER = "preferred_player"
@@ -864,11 +849,6 @@ class MovieViewHolder(
             pbDownloadInlineSpinner = null
             pbDownloadInlineProgress = null
             btnDownloadCancelInline = null
-            // WLFMOVIE V6.4.5: la tarjeta de conversión tampoco existe en TV.
-            llConversionProgress = null
-            tvConversionStatus = null
-            pbConversionInlineSpinner = null
-            pbConversionInlineProgress = null
         } else {
             // WLFMOVIE V6.3.1: Cachear referencias al botón y spinner como
             // fields de clase para que startNewDownloadFlow (invocado desde
@@ -885,13 +865,6 @@ class MovieViewHolder(
             pbDownloadInlineSpinner = binding.pbDownloadInlineSpinner
             pbDownloadInlineProgress = binding.pbDownloadInlineProgress
             btnDownloadCancelInline = binding.btnCancelDownloadInline
-
-            // WLFMOVIE V6.4.5: cachear las referencias de la tarjeta de
-            // conversión a MP4 (visible solo en Queued/Converting/Failed).
-            llConversionProgress = binding.llConversionProgress
-            tvConversionStatus = binding.tvConversionStatus
-            pbConversionInlineSpinner = binding.pbConversionInlineSpinner
-            pbConversionInlineProgress = binding.pbConversionInlineProgress
 
             // WLFMOVIE V6.3.2: Click en el botón Cancelar de la tarjeta
             // de progreso → abre el mismo diálogo que el botón principal
@@ -925,7 +898,6 @@ class MovieViewHolder(
             //     tarjeta vuelve a "no aparecer".
             downloadProgressJob?.cancel()
             downloadAnyActiveJob?.cancel()
-            conversionStateJob?.cancel()
             val lifecycleOwner = itemView.findViewTreeLifecycleOwner()
                 ?: androidx.lifecycle.ProcessLifecycleOwner.get()
             android.util.Log.d(
@@ -955,15 +927,8 @@ class MovieViewHolder(
                     updateDownloadButton(binding.btnMovieDownload, binding.pbMovieDownloadSpinner)
                 }
             }
-            // WLFMOVIE V6.4.5: observar el estado de conversión TS→MP4 de ESTA
-            // película (misma mecánica que downloadProgressJob: se re-registra
-            // en cada bind y la tarjeta se oculta para cualquier estado Idle).
-            conversionStateJob = lifecycleOwner.lifecycleScope.launch {
-                com.mew.wlfmovie.download.DownloadConverter.observeState(movie.id).collect { state ->
-                    currentConversionState = state
-                    updateConversionCard()
-                }
-            }
+            // WLFMOVIE V6.6.0: el collector de estado de conversión fue
+            // ELIMINADO — ya no existe conversión TS→MP4 que observar.
             // Estado inicial inmediato (sin esperar la primera emission del
             // Flow — cubre el caso de abrir detalles CON la descarga ya
             // corriendo y el combine tardando en emitir).
@@ -975,11 +940,6 @@ class MovieViewHolder(
             // acabábamos de pintar con el snapshot durante ~1s).
             currentDownloadState = MovieDownloadManager.snapshotProgressState(movie.id)
             updateDownloadButton(binding.btnMovieDownload, binding.pbMovieDownloadSpinner)
-            // WLFMOVIE V6.4.5: estado inicial de conversión sin esperar la
-            // primera emisión del Flow (cubre abrir detalles con la película
-            // ya convirtiéndose o en cola).
-            currentConversionState = com.mew.wlfmovie.download.DownloadConverter.snapshotState(movie.id)
-            updateConversionCard()
             binding.btnMovieDownload.setOnClickListener {
                 handleDownloadButtonClick()
             }
@@ -1199,87 +1159,6 @@ class MovieViewHolder(
         }
     }
 
-    /**
-     * WLFMOVIE V6.4.5: Actualiza la tarjeta de conversión TS→MP4 en detalles
-     * (ll_conversion_progress). Estados:
-     *  - Queued(pos)     → "En cola para convertir (posición X)"
-     *  - Converting(p,t) → "Convirtiendo a MP4… X%" con barra (o "…mm:ss"
-     *                      sin porcentaje cuando no se pudo determinar la
-     *                      duración del TS)
-     *  - Completed       → "MP4 listo" (visible 1.5s, luego desaparece)
-     *  - Failed          → "No se pudo convertir a MP4…" (el .ts se conserva)
-     *  - Idle            → tarjeta oculta.
-     *
-     * Se llama desde el collector de DownloadConverter.observeState(movie.id)
-     * y una vez al bindear (snapshot). En TV es no-op (refs null).
-     */
-    private fun updateConversionCard() {
-        val card = llConversionProgress ?: return
-        val status = tvConversionStatus ?: return
-        val spinner = pbConversionInlineSpinner ?: return
-        val progressBar = pbConversionInlineProgress ?: return
-
-        when (val state = currentConversionState) {
-            is com.mew.wlfmovie.download.DownloadConverter.ConversionState.Queued -> {
-                card.visibility = android.view.View.VISIBLE
-                status.text = context.getString(R.string.conversion_status_queued, state.position)
-                spinner.visibility = android.view.View.VISIBLE
-                progressBar.visibility = android.view.View.GONE
-            }
-            is com.mew.wlfmovie.download.DownloadConverter.ConversionState.Converting -> {
-                card.visibility = android.view.View.VISIBLE
-                if (state.hasProgress) {
-                    val percent = (state.progress * 100).toInt().coerceIn(0, 100)
-                    status.text = context.getString(R.string.conversion_status_converting, percent)
-                    progressBar.visibility = android.view.View.VISIBLE
-                    progressBar.progress = percent
-                } else {
-                    // Sin duración conocida (TS sin PCR): mostrar tiempo transcurrido.
-                    status.text = context.getString(
-                        R.string.conversion_status_converting_elapsed,
-                        formatConversionElapsed(state.elapsedSec),
-                    )
-                    progressBar.visibility = android.view.View.GONE
-                }
-                spinner.visibility = android.view.View.VISIBLE
-            }
-            is com.mew.wlfmovie.download.DownloadConverter.ConversionState.Completed -> {
-                card.visibility = android.view.View.VISIBLE
-                status.text = context.getString(R.string.conversion_status_completed)
-                spinner.visibility = android.view.View.GONE
-                progressBar.visibility = android.view.View.GONE
-            }
-            is com.mew.wlfmovie.download.DownloadConverter.ConversionState.Failed -> {
-                card.visibility = android.view.View.VISIBLE
-                // V6.4.5 build-fix 2: mostrar el MOTIVO del fallo (antes era
-                // un genérico). El detalle completo con etapa y stack va al
-                // "Errores recopilados" de Ajustes → Acerca de (solo debug).
-                status.text = if (state.reason.isNotBlank()) {
-                    context.getString(
-                        R.string.conversion_status_failed_reason,
-                        state.reason.take(80),
-                    )
-                } else {
-                    context.getString(R.string.conversion_status_failed)
-                }
-                spinner.visibility = android.view.View.GONE
-                progressBar.visibility = android.view.View.GONE
-            }
-            else -> {
-                card.visibility = android.view.View.GONE
-                spinner.visibility = android.view.View.GONE
-                progressBar.visibility = android.view.View.GONE
-            }
-        }
-    }
-
-    /** mm:ss para el estado "Convirtiendo…" sin porcentaje. */
-    private fun formatConversionElapsed(totalSec: Long): String {
-        val safe = totalSec.coerceAtLeast(0L)
-        val m = safe / 60L
-        val s = safe % 60L
-        return String.format(java.util.Locale.US, "%02d:%02d", m, s)
-    }
 
     /**
      * Delegador del click en btn_movie_download segun el estado actual.

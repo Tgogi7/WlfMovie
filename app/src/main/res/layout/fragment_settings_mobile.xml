@@ -155,39 +155,6 @@
                 android:layout_marginBottom="24dp"
                 android:background="#33FFFFFF" />
 
-            <!-- WLFMOVIE V6.4.4: Seccion Descargas (SOLO configs moviles).
-                 Switch que activa la conversion de descargas a MP4. -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:fontFamily="sans-serif-medium"
-                android:text="@string/settings_downloads_section"
-                android:textAllCaps="true"
-                android:letterSpacing="0.12"
-                android:textColor="@color/wlf_fuchsia_neon"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/sw_settings_convert_downloads"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:text="@string/settings_convert_downloads_title"
-                android:textColor="@color/wlf_text_primary"
-                android:textSize="15sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="28dp"
-                android:fontFamily="sans-serif-light"
-                android:lineSpacingExtra="3dp"
-                android:text="@string/settings_convert_downloads_desc"
-                android:textColor="@color/wlf_text_secondary"
-                android:textSize="13sp" />
-
             <TextView
                 android:id="@+id/btn_settings_terms"
                 android:layout_width="wrap_content"

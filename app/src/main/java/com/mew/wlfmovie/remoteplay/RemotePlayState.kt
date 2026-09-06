@@ -42,6 +42,16 @@ object RemotePlayState {
     private val _remoteIsPlaying = MutableStateFlow(false)
     val remoteIsPlaying: StateFlow<Boolean> = _remoteIsPlaying.asStateFlow()
 
+    // V6.5.0: progreso (0..100) de la preparación en caliente del .ts local
+    // para el envío al PC (caminata de purga: corridas limpias + discontinuidades).
+    // -1 = no aplica / terminó con fallo / cast online o .mp4.
+    private val _localPrepProgress = MutableStateFlow(-1)
+    val localPrepProgress: StateFlow<Int> = _localPrepProgress.asStateFlow()
+
+    fun updateLocalPrep(percent: Int) {
+        _localPrepProgress.value = percent
+    }
+
     // Info del video actual (seteado por el Fragment al iniciar cast)
     var currentVideo: Video? = null
     var currentServer: Video.Server? = null
@@ -89,6 +99,7 @@ object RemotePlayState {
         isLocalFile = false
         localFilePath = null
         downloadId = null
+        _localPrepProgress.value = -1
         _serverUrl.value = null
         _connectionState.value = ConnectionState.IDLE
         _remotePosition.value = 0L

@@ -15,6 +15,9 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.SequenceInputStream
 import java.util.Locale
+import java.util.Vector
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class RemotePlayServer(
     private val context: Context,
@@ -27,6 +30,9 @@ class RemotePlayServer(
 
         /** Indices de archivos locales conservados en el registro (LRU). */
         private const val MAX_LOCAL_INDEXES = 3
+
+        /** V6.5.0: tope de espera del /stream por la preparacion en caliente. */
+        private const val PREPARE_AWAIT_SECONDS = 180L
     }
 
     private val videoProxy = VideoProxy()
@@ -53,7 +59,11 @@ class RemotePlayServer(
     // usuario castea otra pelicula mientras un player todavia reproduce la
     // anterior, ese player SIGUE recibiendo los bytes correctos.
     // =================================================================
-    private class LocalIndexEntry(
+    // V6.5.1: sin "private" — prepareLocalFile() (public) lo devuelve y
+    // RemotePlayController lee entry.index para el diagnóstico de purga;
+    // privado, K2 lo rechaza dos veces ("exposes private-in-class return
+    // type" + "cannot access" en el Controller).
+    class LocalIndexEntry(
         val key: String,                       // "path|len|mtime"
         val file: File,
         val index: LocalMediaPlaylist.LocalIndex,
@@ -63,6 +73,19 @@ class RemotePlayServer(
     private val localIndexLock = Any()
     private val localIndexRegistry = LinkedHashMap<String, LocalIndexEntry>() // version → entry (LRU)
     private var localIndexFailedKey: String? = null  // ultimo archivo cuya indexacion fallo (evita reintentar caro en cada request)
+
+    // =================================================================
+    // V6.5.0: preparacion EN CALIENTE del archivo local.
+    //
+    // La caminata de purga lee el archivo COMPLETO (basura intercalada →
+    // corridas limpias + discontinuidades): en un .ts de 2GB puede tardar
+    // varios segundos. El RemotePlayController la dispara apenas arranca el
+    // cast (prepareLocalFile, con progreso a la UI); si el /stream del PC
+    // llega antes de que termine, espera al ticket (awaitLocalPreparation)
+    // en vez de disparar una caminata DUPLICADA sobre el mismo archivo.
+    // =================================================================
+    private val prepareLock = Any()
+    private val prepareTickets = HashMap<String, CountDownLatch>()
 
     // Callback que se invoca cuando llega un mensaje del PC
     var onMessage: ((JSONObject) -> Unit)? = null
@@ -233,6 +256,12 @@ class RemotePlayServer(
             put("position", RemotePlayState.currentPosition)
             put("duration", RemotePlayState.currentDuration)
             put("isHls", resolveIsHls(video.source))
+            // WLFMOVIE V6.6.0: le dice a la página si lo que llega es una
+            // DESCARGA (archivo local). Con eso el player del PC entra en
+            // MODO NATIVO: video a pantalla completa con los controles del
+            // propio navegador (cero diseño propio), conservando el WebSocket
+            // (posiciones cada 10s, play/pause/seek/stop desde el celular).
+            put("isLocal", RemotePlayState.isLocalFile)
         }
         sendMessage(json)
     }
@@ -354,6 +383,8 @@ class RemotePlayServer(
             put("duration", RemotePlayState.currentDuration)
             put("isHls", resolveIsHls(video.source))
             put("wsUrl", wsUrl ?: "")
+            // WLFMOVIE V6.6.0: modo nativo del player del PC para descargas.
+            put("isLocal", RemotePlayState.isLocalFile)
         }
         Log.i(TAG, "serveInfo: $json")
         val resp = newFixedLengthResponse(
@@ -538,6 +569,10 @@ class RemotePlayServer(
             Log.i(TAG, "serveLocalStream: sirviendo MP4 local directo (${file.length()} bytes)")
             serveFileRange(file, session, "video/mp4")
         } else {
+            // V6.5.0: esperar la preparacion en caliente si esta en curso (la
+            // caminata de purga del .ts puede tardar varios segundos en
+            // archivos grandes) — asi no disparamos una caminata duplicada.
+            awaitLocalPreparation(file)
             val currentEntry = getLocalIndexEntry(file)
             if (currentEntry != null) {
                 // V6.4.1: m3u8 con segmentos AUTOCONTENIDOS — cada
@@ -545,13 +580,22 @@ class RemotePlayServer(
                 // o su init via EXT-X-MAP (fMP4). Esto arregla el
                 // fragParsingError ("Found no media in fragment N") de los
                 // byteranges crudos.
-                val m3u8 = LocalMediaPlaylist.buildM3u8(currentEntry.index, currentEntry.version)
+                val idx = currentEntry.index
+                if (idx.junkRuns > 0 || idx.clockBreaks > 0) {
+                    Log.i(
+                        TAG,
+                        "serveLocalStream: PURGA v=${currentEntry.version} (${file.name}): " +
+                            "se saltaran ${idx.junkBytes}B de basura en ${idx.junkRuns} huecos y " +
+                            "${idx.clockBreaks} saltos de reloj (marcados como discontinuidades)"
+                    )
+                }
+                val m3u8 = LocalMediaPlaylist.buildM3u8(idx, currentEntry.version)
                 Log.i(
                     TAG,
-                    "serveLocalStream: m3u8 ${currentEntry.index.segments.size} segmentos autocontenidos " +
-                        "v=${currentEntry.version} (fmp4=${currentEntry.index.isFmp4}, " +
-                        "prologo=${currentEntry.index.tsPrologue?.size ?: 0}B, " +
-                        "total=${"%.1f".format(currentEntry.index.totalDurationSec)}s)"
+                    "serveLocalStream: m3u8 ${idx.segments.size} segmentos autocontenidos " +
+                        "v=${currentEntry.version} (fmp4=${idx.isFmp4}, " +
+                        "prologo=${idx.tsPrologue?.size ?: 0}B, " +
+                        "total=${"%.1f".format(idx.totalDurationSec)}s)"
                 )
                 val resp = newFixedLengthResponse(
                     NanoHTTPD.Response.Status.OK,
@@ -636,6 +680,10 @@ class RemotePlayServer(
      * Conserva los ultimos MAX_LOCAL_INDEXES archivos (LRU): un player que
      * sigue descargando segmentos versionados sigue recibiendo SUS bytes
      * aunque la sesion ya castee otra pelicula.
+     *
+     * V6.5.0: la caminata de purga (lee el archivo ENTERO) corre FUERA del
+     * lock — antes sujetaba localIndexLock durante todo el escaneo y bloqueaba
+     * requests paralelos (/localsegment sin ?v) durante segundos.
      */
     private fun getLocalIndexEntry(file: File): LocalIndexEntry? {
         val key = fileIdentityKey(file)
@@ -646,15 +694,30 @@ class RemotePlayServer(
             }
             // Indexacion que ya fallo para ESTE archivo → no reintentar caro
             if (localIndexFailedKey == key) return null
+        }
+        return buildIndexEntry(file, key)
+    }
 
-            val index = LocalMediaPlaylist.buildIndex(file, RemotePlayState.currentDuration)
-            if (index == null) {
-                Log.w(TAG, "getLocalIndexEntry: no se pudo indexar ${file.name} — fallback byterange por ahora")
-                localIndexFailedKey = key
-                return null
-            }
+    /** Construye el indice (caminata de purga incluida) y lo registra. */
+    private fun buildIndexEntry(
+        file: File,
+        key: String,
+        onProgress: ((Float) -> Unit)? = null,
+    ): LocalIndexEntry? {
+        val index = LocalMediaPlaylist.buildIndex(file, RemotePlayState.currentDuration, onProgress)
+        if (index == null) {
+            Log.w(TAG, "buildIndexEntry: no se pudo indexar ${file.name} — fallback byterange por ahora")
+            synchronized(localIndexLock) { localIndexFailedKey = key }
+            return null
+        }
+        val version = versionOf(key)
+        synchronized(localIndexLock) {
             localIndexFailedKey = null
-            val version = versionOf(key)
+            // Carrera: otro hilo pudo registrar el mismo archivo mientras
+            // caminabamos → quedarnos con el SUYO (mismo contenido).
+            for (e in localIndexRegistry.values) {
+                if (e.key == key) return e
+            }
             val entry = LocalIndexEntry(key, file, index, version)
             localIndexRegistry[version] = entry
             while (localIndexRegistry.size > MAX_LOCAL_INDEXES) {
@@ -662,6 +725,57 @@ class RemotePlayServer(
                 localIndexRegistry.remove(eldest)
             }
             return entry
+        }
+    }
+
+    /**
+     * V6.5.0: preparacion EN CALIENTE del .ts local — la llama el
+     * RemotePlayController apenas arranca el cast (Dispatchers.IO), con el
+     * progreso de la caminata hacia la UI. Devuelve el entry registrado (o
+     * null si el archivo no se pudo indexar). Idempotente y single-flight:
+     * si ya esta cacheado devuelve el cacheado; si hay una caminata en curso
+     * para el mismo archivo, la espera en vez de duplicarla.
+     */
+    fun prepareLocalFile(file: File, onProgress: (Float) -> Unit): LocalIndexEntry? {
+        if (!file.exists() || file.length() <= 0L) return null
+        val key = fileIdentityKey(file)
+        synchronized(localIndexLock) {
+            for (e in localIndexRegistry.values) {
+                if (e.key == key) return e
+            }
+        }
+        val existing = synchronized(prepareLock) { prepareTickets[key] }
+        if (existing != null) {
+            try {
+                existing.await()
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+            return getLocalIndexEntry(file)
+        }
+        val latch = CountDownLatch(1)
+        synchronized(prepareLock) { prepareTickets[key] = latch }
+        try {
+            return buildIndexEntry(file, key, onProgress)
+        } finally {
+            synchronized(prepareLock) { prepareTickets.remove(key) }
+            latch.countDown()
+        }
+    }
+
+    /**
+     * V6.5.0: espera (acotada) a que la preparacion en caliente de [file]
+     * termine, si hay una en curso. Sin ticket → devuelve inmediato (el
+     * llamador indexara de forma perezosa, como siempre).
+     */
+    private fun awaitLocalPreparation(file: File) {
+        val key = fileIdentityKey(file)
+        val ticket = synchronized(prepareLock) { prepareTickets[key] } ?: return
+        Log.i(TAG, "awaitLocalPreparation: /stream llego mientras se prepara ${file.name} — esperando")
+        try {
+            ticket.await(PREPARE_AWAIT_SECONDS, TimeUnit.SECONDS)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
         }
     }
 
@@ -820,30 +934,39 @@ class RemotePlayServer(
             return resp
         }
 
-        // MPEG-TS: prologo verbatim (PAT+PMT) + bytes del archivo
+        // MPEG-TS: prologo verbatim (PAT+PMT) + bytes del archivo.
+        // V6.5.0: el segmento se sirve como CONCATENACION DE RANGOS del
+        // archivo original — la caminata de purga dejo la basura entre
+        // segmentos, nunca dentro: lo que llega al PC es TS limpio 100%
+        // alineado, aunque el .ts del telefono tenga basura intercalada.
         val prologue = index.tsPrologue
-        val fileStream = boundedFileInputStream(file, seg.offset, seg.length)
-            ?: return newFixedLengthResponse(
-                NanoHTTPD.Response.Status.INTERNAL_ERROR,
-                "text/plain",
-                "500 error leyendo segmento"
-            )
-        val resp = if (prologue != null) {
-            val total = prologue.size.toLong() + seg.length
-            newFixedLengthResponse(
-                NanoHTTPD.Response.Status.OK,
-                "video/mp2t",
-                SequenceInputStream(ByteArrayInputStream(prologue), fileStream),
-                total
-            )
-        } else {
-            newFixedLengthResponse(
-                NanoHTTPD.Response.Status.OK,
-                "video/mp2t",
-                fileStream,
-                seg.length
-            )
+        val ranges = seg.ranges ?: listOf(LocalMediaPlaylist.ByteRange(seg.offset, seg.length))
+        var totalBytes = 0L
+        for (r in ranges) totalBytes += r.length
+        val streamList = Vector<InputStream>()
+        if (prologue != null) {
+            streamList.add(ByteArrayInputStream(prologue))
         }
+        for (r in ranges) {
+            val s = boundedFileInputStream(file, r.offset, r.length)
+            if (s == null) {
+                // Cerrar lo ya abierto antes de fallar.
+                for (st in streamList) runCatching { st.close() }
+                return newFixedLengthResponse(
+                    NanoHTTPD.Response.Status.INTERNAL_ERROR,
+                    "text/plain",
+                    "500 error leyendo segmento"
+                )
+            }
+            streamList.add(s)
+        }
+        val total = (prologue?.size ?: 0).toLong() + totalBytes
+        val resp = newFixedLengthResponse(
+            NanoHTTPD.Response.Status.OK,
+            "video/mp2t",
+            SequenceInputStream(streamList.elements()),
+            total
+        )
         addNoStoreHeaders(resp)
         return resp
     }

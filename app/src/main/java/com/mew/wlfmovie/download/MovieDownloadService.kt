@@ -167,18 +167,10 @@ class MovieDownloadService : Service() {
                 MovieDownloadNotifier.notifyCompleted(this@MovieDownloadService, movieId, title)
                 toast(getString(R.string.download_completed_toast, title))
 
-                // WLFMOVIE V6.4.5: si la opción "Convertir descargas a MP4" está
-                // activada, encolar la película recién descargada. Solo aplica a
-                // HLS (.ts); REMUX ya baja .mp4. La conversión (remux local, sin
-                // internet) corre en DownloadConverter en segundo plano.
-                if (filePath.endsWith(".ts", ignoreCase = true)) {
-                    runCatching {
-                        com.mew.wlfmovie.download.DownloadConverter.enqueue(
-                            this@MovieDownloadService,
-                            movieId,
-                        )
-                    }
-                }
+                // WLFMOVIE V6.6.0: ya NO se encola ninguna conversión a MP4 —
+                // la conversión (y la re-codificación de audio) fue eliminada
+                // por completo. La descarga queda tal como bajó: .ts (HLS) o
+                // .mp4 (Remux), y "Enviar al PC" la sirve tal cual.
             } catch (e: kotlinx.coroutines.CancellationException) {
                 // Cancelado por el usuario: borrar parcial y publicar Cancelled.
                 cleanupPartialFile(movieId, downloadDir)
@@ -244,9 +236,6 @@ class MovieDownloadService : Service() {
             File(dir, "movie_${sanitizeFileName(movieId)}.ts").delete()
             File(dir, "movie_${sanitizeFileName(movieId)}_segments").deleteRecursively()
         }
-        // WLFMOVIE V6.4.5: si había una conversión en cola/curso para esta
-        // película, cancelarla (los archivos se están borrando abajo).
-        runCatching { com.mew.wlfmovie.download.DownloadConverter.cancel(movieId) }
         MovieDownloadManager.publishCancelled(movieId)
         MovieDownloadNotifier.cancel(this, movieId)
         stopForegroundAndSelf(movieId)

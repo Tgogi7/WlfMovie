@@ -398,7 +398,6 @@
     <string name="settings_immersive_mode_on">On (Bars hidden)</string>
     <string name="settings_immersive_mode_off">Off (Bars visible)</string>
 
-
     <string name="player_brightness">Brightness</string>
     <string name="player_volume">Volume</string>
     <string name="percentage_format">%d%%</string>
@@ -619,22 +618,6 @@
     <string name="debug_errors_clear_no">Cancel</string>
     <string name="debug_errors_clear_done">Errors cleared</string>
     <string name="debug_errors_copied_toast">Copied to clipboard</string>
-
-    <!-- WLFMOVIE V6.4.4: Configuracion -> Descargas (solo movil) -->
-    <string name="settings_downloads_section">Downloads</string>
-    <string name="settings_convert_downloads_title">Convert downloads to MP4</string>
-    <string name="settings_convert_downloads_desc">Required to send downloads to the PC. When a download finishes, it is converted to MP4 in a local queue: no internet needed, just keep the app open. The conversion may take a few extra minutes, but playback on the PC becomes direct and stable.</string>
-    <string name="settings_convert_downloads_on_toast">MP4 conversion enabled</string>
-    <string name="settings_convert_downloads_off_toast">MP4 conversion disabled</string>
-
-    <!-- WLFMOVIE V6.4.5: estado de conversion en detalles de la pelicula -->
-    <string name="settings_convert_queued_toast">%1$d movies queued for MP4 conversion</string>
-    <string name="conversion_status_converting">Converting to MP4… %1$d%%</string>
-    <string name="conversion_status_converting_elapsed">Converting to MP4… %1$s</string>
-    <string name="conversion_status_queued">In queue to convert (position %1$d)</string>
-    <string name="conversion_status_completed">MP4 ready</string>
-    <string name="conversion_status_failed">Could not convert to MP4 — it will be sent to the PC as TS</string>
-    <string name="conversion_status_failed_reason">Could not convert to MP4 — it will be sent to the PC as TS (%1$s)</string>
 
     <!-- WLFMOVIE V6.4.7: watchdog de arranque offline -->
     <string name="offline_playback_stall_toast">The downloaded video won\'t start (broken MP4). The error was logged — Settings → About → Collected errors</string>

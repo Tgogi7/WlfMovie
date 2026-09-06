@@ -30,6 +30,11 @@ let stopReceived = false;  // true cuando el mobile envió 'stop' intencionalmen
 let initialLoadTimer = null;  // V6.4.2: espera breve al video_info del WS antes de cargar por /info
 let hlsMediaErrorRecoveries = 0;  // V6.4.2: recuperaciones de mediaError ya intentadas
 let loadedVideoKey = null;  // V6.4.3: 'title|url' del video ya cargado (evita recargas por reconexión del WS)
+// V6.8.0: el "modo nativo" de V6.6.0 (ocultar el diseño y usar los controles
+// del navegador) fue RETIRADO — volvió el diseño propio para las descargas.
+// Lo que se conserva de V6.7.0 es lo que arregló el audio: el PIPELINE
+// nativo del navegador (video.src = /stream) para las descargas, ahora con
+// nuestra barra, botones y atajos de teclado encima.
 
 // V6.4.3: cache-buster — el navegador del PC puede tener respuestas viejas de
 // builds anteriores guardadas en su caché (los builds pre-6.4.2 no mandaban
@@ -42,6 +47,15 @@ function cacheBust(url) {
     const sep = url.includes('?') ? '&' : '?';
     return url + sep + 'cb=' + Date.now();
 }
+
+// ===== V6.7.0: pipeline NATIVO para descargas (mantenido en V6.8.0) =====
+// El diseño propio VOLVIÓ (V6.8.0) — el video se sigue cargando con el
+// pipeline nativo del navegador (lo que arregló el audio), pero con nuestra
+// barra de progreso, botones, spinner y atajos de teclado encima, y el
+// WebSocket vivo por debajo:
+//   - Posiciones reportadas cada 10s + pause/seek/ended → progreso guardado.
+//   - play/pause/seek/stop desde el celular.
+//   - Sesión activa ("compartir bien hecho").
 
 // ===== Init =====
 
@@ -82,12 +96,12 @@ async function init() {
                 initialLoadTimer = null;
                 if (!videoLoaded && !currentVideoUrl) {
                     console.log('[WlfMovie Remote] video_info no llegó por WS — cargando desde /info');
-                    loadVideo('/stream', position, isHls);
+                    loadVideo('/stream', position, isHls, info.isLocal);
                 }
             }, 1500);
         } else {
             // Sin wsUrl (no debería pasar): cargar directo como siempre.
-            loadVideo('/stream', position, isHls);
+            loadVideo('/stream', position, isHls, info.isLocal);
         }
 
         if (duration > 0) {
@@ -188,6 +202,7 @@ function handleServerMessage(msg) {
             console.log('[WlfMovie Remote] video_info recibido:', msg);
             if (initialLoadTimer) { clearTimeout(initialLoadTimer); initialLoadTimer = null; }
             titleEl.textContent = msg.title || 'WlfMovie';
+            document.title = msg.title || 'WlfMovie';  // V6.6.0: título en la pestaña
             const subtitle = msg.subtitle || '';
             subtitleEl.textContent = subtitle;
             subtitleEl.style.display = subtitle ? 'block' : 'none';
@@ -229,8 +244,10 @@ function handleServerMessage(msg) {
             hideError();
             bufferingEl.style.display = 'block';
 
-            // Recargar el video con la nueva posición
-            loadVideo(msg.url || '/stream', msg.position || 0, msg.isHls || false);
+            // Recargar el video con la nueva posición (V6.7.0: isLocal activa
+            // el pipeline NATIVO del navegador para descargas — la pestaña
+            // directa del usuario demostró que suena bien).
+            loadVideo(msg.url || '/stream', msg.position || 0, msg.isHls || false, msg.isLocal);
             break;
         }
         case 'play':
@@ -355,7 +372,7 @@ function reportPositionNow() {
 
 // ===== Video loading =====
 
-function loadVideo(url, startPosition, isHls) {
+function loadVideo(url, startPosition, isHls, isLocal, forceHlsJs) {
     if (hls) {
         hls.destroy();
         hls = null;
@@ -371,12 +388,62 @@ function loadVideo(url, startPosition, isHls) {
     // podía estar reponiendo un m3u8 de días atrás sin que el celular lo supiera).
     const loadUrl = cacheBust(url);
     const useHls = isHls || url.includes('.m3u8');
+    const canNativeHls = video.canPlayType('application/vnd.apple.mpegurl');
 
-    if (useHls && Hls.isSupported()) {
+    // V6.7.0: DESCARGAS — NATIVO PRIMERO (la prueba del usuario lo demostró:
+    // abrir /stream?cb=… DIRECTO en una pestaña del navegador reproduce la
+    // película CON BUEN AUDIO, adelanta bien y funciona hasta sin internet).
+    // O sea: SU navegador reproduce este stream por sí solo, con su propio
+    // pipeline — el mismo que hls.js+MSE NO puede igualar en algunos archivos
+    // (audio que suena grave tras ~2s).
+    // V6.8.0: el video se carga con ese mismo pipeline NATIVO pero con
+    // NUESTRO DISEÑO encima (barra, botones, teclado) y el WebSocket vivo
+    // por debajo → las POSICIONES se siguen reportando cada 10s +
+    // pause/seek/ended, y el celular sigue mandando play/pause/seek/stop.
+    // Si el navegador NO puede reproducir HLS nativo (canPlayType vacío),
+    // cae a hls.js exactamente como hoy — cero regresión. Y si el pipeline
+    // nativo falla ANTES de arrancar, también cae solo a hls.js.
+    // El ONLINE NUNCA entra aquí (isLocal=false): sigue por hls.js igual
+    // que siempre, intacto.
+    if (useHls && isLocal && !forceHlsJs && canNativeHls) {
+        console.log('[WlfMovie Remote] descarga local: HLS NATIVO del navegador (mismo pipeline que la pestaña directa)');
+        const onNativeHlsError = () => {
+            video.removeEventListener('error', onNativeHlsError);
+            if (videoLoaded) return;  // falló a mitad de reproducción — no re-cargar
+            console.warn('[WlfMovie Remote] HLS nativo falló antes de arrancar — cayendo a hls.js');
+            try {
+                video.removeAttribute('src');
+                video.load();
+            } catch (_) {}
+            loadVideo(url, startPosition, isHls, isLocal, true);
+        };
+        video.addEventListener('error', onNativeHlsError);
+        video.src = loadUrl;
+        video.addEventListener('loadedmetadata', () => {
+            videoLoaded = true;
+            if (startPosition > 0) {
+                video.currentTime = startPosition / 1000;
+            }
+            video.play().catch(err => console.warn('[WlfMovie Remote] autoplay blocked:', err));
+        }, { once: true });
+    } else if (useHls && Hls.isSupported()) {
         console.log('[WlfMovie Remote] usando hls.js');
         hls = new Hls({
             enableWorker: true,
             lowLatencyMode: false,
+            // V6.5.0: al enviar una DESCARGA, el celular purga el .ts en caliente
+            // (camina el archivo completo para saltarle la basura intercalada).
+            // Mientras eso corre, /stream puede tardar >10s en responder — los
+            // timeouts default de hls.js (10s manifest / 20s fragmento) mataban
+            // la carga con un error fatal ANTES de que el índice estuviera
+            // listo. Con margen de 60s + reintentos, el navegador simplemente
+            // espera a que el teléfono termine.
+            manifestLoadingTimeOut: 60000,
+            manifestLoadingMaxRetry: 4,
+            manifestLoadingRetryDelay: 2000,
+            fragLoadingTimeOut: 60000,
+            fragLoadingMaxRetry: 6,
+            fragLoadingRetryDelay: 2000,
         });
         hls.loadSource(loadUrl);
         hls.attachMedia(video);
@@ -627,5 +694,5 @@ retryBtn.addEventListener('click', () => {
 });
 
 // Start
-console.log('[WlfMovie Remote] app.js V6.4.3');
+console.log('[WlfMovie Remote] app.js V6.6.0');
 init();

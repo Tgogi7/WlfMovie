@@ -1740,6 +1740,13 @@ class PlayerMobileFragment : Fragment() {
 
     private var remotePlayDialog: AlertDialog? = null
     private var remotePlayStateJob: kotlinx.coroutines.Job? = null
+    private var remotePrepJob: kotlinx.coroutines.Job? = null
+    private var remoteWaitingTextView: TextView? = null
+
+    private fun cancelRemotePrepJob() {
+        remotePrepJob?.cancel()
+        remotePrepJob = null
+    }
 
     private fun startRemotePlay() {
         val video = currentVideo
@@ -1785,6 +1792,8 @@ class PlayerMobileFragment : Fragment() {
 
     private fun stopRemotePlay() {
         remotePlayStateJob?.cancel()
+        cancelRemotePrepJob()
+        remoteWaitingTextView = null
         lifecycleScope.launch(Dispatchers.IO) {
             RemotePlayController.stop(requireContext())
         }
@@ -1810,6 +1819,8 @@ class PlayerMobileFragment : Fragment() {
                         // El PC conectó — cerrar diálogo y navegar a RemotePlayFragment
                         remotePlayDialog?.dismiss()
                         remotePlayDialog = null
+                        remoteWaitingTextView = null
+                        cancelRemotePrepJob()
                         navigateToRemotePlayFragment()
                     }
                     RemotePlayState.ConnectionState.WAITING -> {
@@ -1823,6 +1834,8 @@ class PlayerMobileFragment : Fragment() {
                     RemotePlayState.ConnectionState.STOPPING -> {
                         remotePlayDialog?.dismiss()
                         remotePlayDialog = null
+                        remoteWaitingTextView = null
+                        cancelRemotePrepJob()
                     }
                     else -> { /* STARTING, ERROR — no hacer nada aún */ }
                 }
@@ -1882,6 +1895,17 @@ class PlayerMobileFragment : Fragment() {
             setTextIsSelectable(true)
         }
 
+        // V6.5.0: el .ts local se PURGA en caliente antes de servirse al PC
+        // (se le saca la basura intercalada). Mostrar el avance en el diálogo
+        // para que el usuario sepa que puede abrir la URL ya — el navegador
+        // espera solo lo que falte de la preparación.
+        remoteWaitingTextView = textView
+        if (isOffline) {
+            observeRemotePrepStatus(message)
+        } else {
+            cancelRemotePrepJob()
+        }
+
         remotePlayDialog?.dismiss()
         remotePlayDialog = AlertDialog.Builder(requireContext())
             .setTitle(if (isOffline) "💻 Enviar descarga al PC" else "💻 Esperando conexión")
@@ -1901,6 +1925,26 @@ class PlayerMobileFragment : Fragment() {
             .show()
 
         remotePlayDialog?.window?.setBackgroundDrawable(ColorDrawable(Color.parseColor("#1a0a1f")))
+    }
+
+    /**
+     * V6.5.0: observa el progreso de la purga del .ts local y lo pinta en el
+     * diálogo de espera ("📦 Preparando archivo para el PC… X%").
+     */
+    private fun observeRemotePrepStatus(baseMessage: String) {
+        cancelRemotePrepJob()
+        remotePrepJob = viewLifecycleOwner.lifecycleScope.launch {
+            RemotePlayState.localPrepProgress.collect { pct ->
+                val tv = remoteWaitingTextView ?: return@collect
+                if (_binding == null) return@collect
+                tv.text = if (pct in 0..99) {
+                    baseMessage + "\n\n📦 Preparando archivo para el PC… $pct%" +
+                        "\n(puedes abrir la URL ya: el navegador espera lo que falte)"
+                } else {
+                    baseMessage
+                }
+            }
+        }
     }
 
 
