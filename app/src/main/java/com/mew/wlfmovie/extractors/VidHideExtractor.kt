@@ -24,7 +24,8 @@ class VidHideExtractor: Extractor() {
         "https://dintezuvio.com",
         "https://minochinos.com",
         "https://moflix-stream.click",
-        "https://filelions.to"
+        "https://filelions.to",
+        "https://morencius.com"
     )
 
     companion object {
@@ -42,7 +43,7 @@ class VidHideExtractor: Extractor() {
             fallback
         }
         val origin = referer
-        
+
         val source = service.getSource(
             url = link,
             referer = referer,
@@ -64,7 +65,7 @@ class VidHideExtractor: Extractor() {
             }
 
         val finalUrl = links["hls4"] ?: links["hls2"] ?: throw Exception("No HLS link found")
-        
+
         // Add domain if the URL starts with "/"
         val completeUrl = if (finalUrl.startsWith("/")) {
             val baseUrl = URL(link).protocol + "://" + URL(link).host

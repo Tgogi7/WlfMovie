@@ -3,6 +3,7 @@ package com.mew.wlfmovie.extractors
 import android.util.Base64
 import com.mew.wlfmovie.models.Video
 import com.mew.wlfmovie.utils.JsUnpacker
+import com.mew.wlfmovie.utils.DnsResolver
 import retrofit2.http.GET
 import retrofit2.http.Url
 import retrofit2.Retrofit
@@ -12,6 +13,7 @@ import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 class HxfileExtractor : Extractor() {
     override val name = "Hxfile"
     override val mainUrl = "https://hxfile.co"
+    override val aliasUrls = listOf("https://xshotcok.com")
 
     companion object {
         private const val DEFAULT_USER_AGENT =

@@ -37,7 +37,11 @@ class GoodstreamExtractor : Extractor() {
 
         return Video(
             source = m3u8 ?: throw Exception("Can't retrieve source"),
-            headers = mapOf("User-Agent" to userAgent)
+            headers = mapOf(
+                "User-Agent" to userAgent,
+                "Accept-Language" to "en-US,en;q=0.9",
+                "Referer" to mainUrl
+            )
         )
     }
 
@@ -46,11 +50,12 @@ class GoodstreamExtractor : Extractor() {
         companion object {
             fun build(baseUrl: String): Service {
                 val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                
+
                 val client = OkHttpClient.Builder()
                     .addInterceptor { chain ->
                         val request = chain.request().newBuilder()
                             .addHeader("User-Agent", userAgent)
+                            .addHeader("Accept-Language", "en-US,en;q=0.9")
                             .build()
                         chain.proceed(request)
                     }
