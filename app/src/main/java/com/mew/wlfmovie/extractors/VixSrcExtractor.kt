@@ -3,6 +3,7 @@ package com.mew.wlfmovie.extractors
 import android.util.Base64
 import android.util.Log
 import androidx.media3.common.MimeTypes
+import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.mew.wlfmovie.models.Video

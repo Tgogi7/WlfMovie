@@ -41,6 +41,7 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.ui.PlayerView
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -1095,30 +1096,48 @@ class PlayerMobileFragment : Fragment() {
 
         val currentPosition = player.currentPosition
 
-        httpDataSource.setDefaultRequestProperties(
-            mapOf(
-                "User-Agent" to userAgent,
-            ) + (video.headers ?: emptyMap())
-        )
+        val mediaItem = MediaItem.Builder()
+            .setUri(video.source.toUri())
+            .setMimeType(video.type)
+            .setSubtitleConfigurations(video.subtitles.map { subtitle ->
+                MediaItem.SubtitleConfiguration.Builder(subtitle.file.toUri())
+                    .setMimeType(subtitle.file.toSubtitleMimeType())
+                    .setLabel(subtitle.label)
+                    .setSelectionFlags(if (subtitle.default) C.SELECTION_FLAG_DEFAULT else 0)
+                    .build()
+            })
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setMediaServerId(server.id)
+                    .build()
+            )
+            .build()
 
-        player.setMediaItem(
-            MediaItem.Builder()
-                .setUri(video.source.toUri())
-                .setMimeType(video.type)
-                .setSubtitleConfigurations(video.subtitles.map { subtitle ->
-                    MediaItem.SubtitleConfiguration.Builder(subtitle.file.toUri())
-                        .setMimeType(subtitle.file.toSubtitleMimeType())
-                        .setLabel(subtitle.label)
-                        .setSelectionFlags(if (subtitle.default) C.SELECTION_FLAG_DEFAULT else 0)
-                        .build()
-                })
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setMediaServerId(server.id)
-                        .build()
-                )
-                .build()
-        )
+        // WLFMOVIE YETI: Reproductor directo para YetiPelis (igual que test app)
+        // Cuando el toggle esta ON y el video es de YP, usa DefaultHttpDataSource
+        // (HttpURLConnection + system DNS + setAllowCrossProtocolRedirects) en vez
+        // de OkHttpDataSource. Mismo stack que la test app = mismo rendimiento.
+        val isYetiVideo = server.name.startsWith("YP ") ||
+            video.source.contains("moviemaster.lat") ||
+            video.source.contains("fastream.to")
+
+        if (isYetiVideo && UserPreferences.yetiDirectPlayer) {
+            val headers = video.headers ?: emptyMap()
+            val dsFactory = DefaultHttpDataSource.Factory()
+                .setUserAgent(headers["User-Agent"] ?: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+                .setDefaultRequestProperties(headers)
+                .setAllowCrossProtocolRedirects(true)
+            val msFactory = DefaultMediaSourceFactory(requireContext())
+                .setDataSourceFactory(dsFactory)
+            player.setMediaSource(msFactory.createMediaSource(mediaItem))
+        } else {
+            httpDataSource.setDefaultRequestProperties(
+                mapOf(
+                    "User-Agent" to userAgent,
+                ) + (video.headers ?: emptyMap())
+            )
+            player.setMediaItem(mediaItem)
+        }
 
         // WLFMOVIE: External player eliminado por completo (era "abrir con")
         // Toda la lógica de enviar el video a otra app se quitó.
@@ -2410,7 +2429,7 @@ class PlayerMobileFragment : Fragment() {
         currentSoftwareDecoder = softwareDecoder
 
         var tokenLogged = false
-        val okHttpClient = NetworkClient.default.newBuilder()
+        val okHttpClient = NetworkClient.systemDns.newBuilder()
             .addInterceptor { chain ->
                 var request = chain.request()
                 

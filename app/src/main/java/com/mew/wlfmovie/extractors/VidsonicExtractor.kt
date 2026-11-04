@@ -6,6 +6,7 @@ import org.jsoup.nodes.Document
 import retrofit2.Retrofit
 import retrofit2.http.GET
 import retrofit2.http.Url
+import java.net.URL
 
 class VidsonicExtractor : Extractor() {
     override val name = "Vidsonic"

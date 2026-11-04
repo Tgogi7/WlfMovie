@@ -1358,9 +1358,62 @@ class TmdbProvider(override val language: String) : Provider {
                 channel.send(result)
             }
 
+            // WLFMOVIE V7: Lanzar YetiPelisProvider en paralelo con gnulaJob
+            val yetiJob = launch {
+                // WLFMOVIE Fix: 60s para ambos — las películas con muchos servers
+                // (18-30 servers × 3 idiomas = 54-90 verificaciones) tardan más de 30s
+                val timeoutMs = 60_000L
+                Log.i("WlfMovie", "[YETI] Job iniciado, timeout=${timeoutMs}ms")
+                try { com.mew.wlfmovie.utils.CrashLogger.logError("YetiPelis", "[YETI] Job iniciado", context = "TmdbProvider") } catch (_: Exception) {}
+                val result = withTimeoutOrNull(timeoutMs) {
+                    try {
+                        // WLFMOVIE Fix: para episodios, usar el TMDb ID de la SERIE
+                        // (videoType.tvShow.id), no el ID del episodio (args.id).
+                        // Para películas, args.id ES el TMDb ID.
+                        val tmdbIdInt = when (videoType) {
+                            is Video.Type.Movie -> id.toIntOrNull()
+                            is Video.Type.Episode -> videoType.tvShow.id.toIntOrNull()
+                        }
+                        // Título alternativo: el original en inglés si está disponible
+                        val altTitle = when (videoType) {
+                            is Video.Type.Movie -> null
+                            is Video.Type.Episode -> null
+                        }
+                        Log.i("WlfMovie", "[YETI] Llamando searchServers: title=$targetTitle, isMovie=${videoType is Video.Type.Movie}, tmdbId=$tmdbIdInt")
+                        YetiPelisProvider.searchServers(
+                            title = targetTitle,
+                            isMovie = videoType is Video.Type.Movie,
+                            altTitle = altTitle,
+                            seasonNum = targetSeason,
+                            episodeNum = targetEpisode,
+                            expectTmdbId = tmdbIdInt,
+                        )
+                    } catch (e: Exception) {
+                        Log.e("WlfMovie", "[YETI ERROR] -> ${e.message}")
+                        try { com.mew.wlfmovie.utils.CrashLogger.logError("YetiPelis", "[YETI ERROR] ${e.message}", context = "TmdbProvider") } catch (_: Exception) {}
+                        emptyList()
+                    }
+                } ?: run {
+                    Log.i("WlfMovie", "[YETI] TIMEOUT — sin resultado")
+                    try { com.mew.wlfmovie.utils.CrashLogger.logError("YetiPelis", "[YETI] TIMEOUT — sin resultado", context = "TmdbProvider") } catch (_: Exception) {}
+                    emptyList()
+                }
+                Log.i("WlfMovie", "[YETI] Resultado: ${result.size} servidores")
+                try { com.mew.wlfmovie.utils.CrashLogger.logError("YetiPelis", "[YETI] Resultado: ${result.size} servidores", context = "TmdbProvider") } catch (_: Exception) {}
+                // SIEMPRE enviar al canal (incluso vacío) para que el loop no se cuelgue
+                try {
+                    channel.send(result)
+                    Log.i("WlfMovie", "[YETI] Enviado al canal OK")
+                    try { com.mew.wlfmovie.utils.CrashLogger.logError("YetiPelis", "[YETI] Enviado al canal OK", context = "TmdbProvider") } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    Log.e("WlfMovie", "[YETI] Error enviando al canal: ${e.message}")
+                    try { com.mew.wlfmovie.utils.CrashLogger.logError("YetiPelis", "[YETI] Error enviando al canal: ${e.message}", context = "TmdbProvider") } catch (_: Exception) {}
+                }
+            }
+
             // Recolectar del canal y emitir a medida que llegan
             // 12 providers + 1 Gnula = 13 resultados esperados
-            val totalExpected = providers.size + 1
+            val totalExpected = providers.size + 2  // +1 Gnula +1 Yeti
             var received = 0
             while (received < totalExpected) {
                 val batch = channel.receive()
@@ -1389,6 +1442,7 @@ class TmdbProvider(override val language: String) : Provider {
             // Esperar a que todos los jobs terminen
             jobs.forEach { it.join() }
             gnulaJob.join()
+            yetiJob.join()
             }
         } catch (e: Exception) {
             Log.e("WlfMovie", "[STREAM ERROR] -> ${e.message}")

@@ -19,6 +19,7 @@ import com.mew.wlfmovie.databinding.FragmentSettingsTvBinding
 import com.mew.wlfmovie.utils.AccountManager
 import com.mew.wlfmovie.utils.SyncManager
 import com.mew.wlfmovie.utils.SupabaseClient
+import com.mew.wlfmovie.utils.UserPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -109,6 +110,24 @@ class SettingsTvFragment : Fragment() {
 
         binding.btnSettingsTerms.setOnClickListener {
             showTermsDialog()
+        }
+
+        // WLFMOVIE YETI: Toggle reproductor directo para YetiPelis.
+        // Boton definido en XML (btn_settings_yp_toggle) — confiable, no programatico.
+        binding.btnSettingsYpToggle.apply {
+            text = "Reproductor YetiPelis: ${if (UserPreferences.yetiDirectPlayer) "ACTIVADO" else "DESACTIVADO"}"
+            setOnClickListener {
+                UserPreferences.yetiDirectPlayer = !UserPreferences.yetiDirectPlayer
+                text = "Reproductor YetiPelis: ${if (UserPreferences.yetiDirectPlayer) "ACTIVADO" else "DESACTIVADO"}"
+                Toast.makeText(
+                    requireContext(),
+                    if (UserPreferences.yetiDirectPlayer)
+                        "Reproductor directo activado para YP"
+                    else
+                        "Reproductor directo desactivado",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
         }
 
         updateUI()

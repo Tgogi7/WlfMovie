@@ -2,6 +2,7 @@ package com.mew.wlfmovie.extractors
 
 import com.mew.wlfmovie.models.Video
 import com.mew.wlfmovie.utils.JsUnpacker
+import com.mew.wlfmovie.utils.UserPreferences
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import org.jsoup.nodes.Document
 import retrofit2.Retrofit

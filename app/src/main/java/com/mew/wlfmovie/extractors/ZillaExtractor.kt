@@ -1,7 +1,16 @@
 package com.mew.wlfmovie.extractors
 
+import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.mew.wlfmovie.models.Video
 import androidx.media3.common.MimeTypes
+import okhttp3.ResponseBody
+import org.jsoup.nodes.Document
+import retrofit2.Response
+import retrofit2.Retrofit
+import retrofit2.http.GET
+import retrofit2.http.Headers
+import retrofit2.http.Streaming
+import retrofit2.http.Url
 
 class ZillaExtractor : Extractor() {
 
@@ -22,7 +31,10 @@ class ZillaExtractor : Extractor() {
                     "Accept-Language" to "es-MX,es-ES;q=0.9,es;q=0.8,en-US;q=0.7,en;q=0.6",
                     "Referer" to link,
                     "Origin" to mainUrl,
-                    "Connection" to "keep-alive"
+                    "Connection" to "keep-alive",
+                    "Sec-Fetch-Dest" to "empty",
+                    "Sec-Fetch-Mode" to "cors",
+                    "Sec-Fetch-Site" to "same-origin"
                 )
             )
 

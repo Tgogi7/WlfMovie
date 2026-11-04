@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black">
+
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/player_celular_view"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:resize_mode="fit"
+        app:use_controller="true"
+        app:show_buffering="when_playing"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/ll_celular_title_container"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:background="#80000000"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <TextView
+            android:id="@+id/tv_celular_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@android:color/white"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            tools:text="Avatar" />
+
+        <TextView
+            android:id="@+id/tv_celular_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="sans-serif-light"
+            android:textColor="#CCCCCC"
+            android:textSize="14sp"
+            tools:text="S1 E1 - Pilot"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/btn_celular_exit"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_margin="24dp"
+        android:background="@drawable/wlf_bg_icon_button_tv"
+        android:src="@drawable/ic_settings_close"
+        android:contentDescription="Salir"
+        android:scaleType="centerInside"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <ProgressBar
+        android:id="@+id/pb_celular_buffering"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:indeterminateDrawable="@drawable/wlf_loading_spinner"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

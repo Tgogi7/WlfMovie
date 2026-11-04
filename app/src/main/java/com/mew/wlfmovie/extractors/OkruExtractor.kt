@@ -3,6 +3,7 @@ package com.mew.wlfmovie.extractors
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.mew.wlfmovie.models.Video
 import okhttp3.OkHttpClient
+import org.json.JSONObject
 import org.jsoup.nodes.Document
 import retrofit2.Retrofit
 import retrofit2.http.GET
@@ -18,21 +19,23 @@ class OkruExtractor : Extractor() {
     override suspend fun extract(link: String): Video {
         val document = service.get(link)
 
-        val videoString = document.selectFirst("div[data-options]")
+        val dataOptions = document.selectFirst("div[data-options]")
             ?.attr("data-options")
             ?: throw Exception("No se encontró 'data-options' en la página de Ok.ru")
 
-        val arrayData = videoString.substringAfterLast("\\\"videos\\\":[{\\\"name\\\":\\\"").substringBefore("]")
-        val videos = arrayData.split("{\\\"name\\\":\\\"").reversed().mapNotNull {
-            val videoUrl = it.substringAfter("url\\\":\\\"").substringBefore("\\\"").replace("\\\\u0026", "&")
-            val quality = fixQuality(it.substringBefore("\\\""))
+        val metadata = JSONObject(dataOptions)
+            .getJSONObject("flashvars")
+            .getJSONObject("metadata")
 
-            if (videoUrl.startsWith("https://")) {
-                Pair(quality, videoUrl)
-            } else {
-                null
-            }
-        }
+        val videosArr = metadata.optJSONArray("videos")
+            ?: throw Exception("No se encontraron videos válidos en el JSON de Ok.ru")
+
+        val videos = (0 until videosArr.length()).mapNotNull { i ->
+            val v = videosArr.getJSONObject(i)
+            val url = v.optString("url")
+            val quality = fixQuality(v.optString("name"))
+            if (url.startsWith("https://")) Pair(quality, url) else null
+        }.reversed()
 
         if (videos.isEmpty()) {
             throw Exception("No se encontraron videos válidos en el JSON de Ok.ru")

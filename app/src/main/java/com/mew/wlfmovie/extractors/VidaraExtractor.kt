@@ -16,7 +16,7 @@ class VidaraExtractor : Extractor() {
 
     override val name = "Vidara"
     override val mainUrl = "https://vidara.to"
-    override val aliasUrls = listOf("https://vidara.so")
+    override val aliasUrls = listOf("https://vidara.so", "https://ano.cx", "https://bufsao.com")
 
     override suspend fun extract(link: String): Video {
         val fileCode = URL(link).path.split("/").last { it.isNotEmpty() }

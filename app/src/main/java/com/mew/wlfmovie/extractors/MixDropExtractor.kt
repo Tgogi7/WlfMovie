@@ -23,7 +23,10 @@ class MixDropExtractor : Extractor() {
         "https://mixdrop.club",
         "https://m1xdrop.net",
         "https://miiixdrop.net",
-        "https://miixdrop.net"
+        "https://miixdrop.net",
+        "https://mxdrop.click",
+        "https://mixdrop.vip",
+        "https://mixdrop.si"
     )
     override val rotatingDomain = listOf(
         Regex("^md[3bfyz][a-z0-9]*\\.[a-z0-9]+", RegexOption.IGNORE_CASE)
@@ -39,6 +42,9 @@ class MixDropExtractor : Extractor() {
 
         val document = service.get(
             url = link
+                .replace("mixdrop.vip", "mxdrop.click")
+                .replace("mixdrop.si", "mxdrop.click")
+                .replace("/emb/", "/e/")
                 .replace("/f/", "/e/")
                 .replace(".club/", ".ag/")
                 .replace(Regex("^(https?://[^/]+/e/[^/?#]+).*$", RegexOption.IGNORE_CASE), "$1")

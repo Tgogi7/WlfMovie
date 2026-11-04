@@ -47,6 +47,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -77,6 +78,7 @@ import androidx.media3.ui.PlayerView
 import com.mew.wlfmovie.ui.PlayerTvView
 import com.mew.wlfmovie.utils.DnsResolver
 import com.mew.wlfmovie.utils.NetworkClient
+import okhttp3.Dns
 import com.mew.wlfmovie.utils.EpisodeManager
 import com.mew.wlfmovie.utils.MediaServer
 //import com.mew.wlfmovie.utils.PlayerGestureHelper
@@ -1161,29 +1163,48 @@ class PlayerTvFragment : Fragment() {
 
             val currentPosition = startPositionMs ?: player.currentPosition
 
-            httpDataSource.setDefaultRequestProperties(
-                mapOf(
-                    "User-Agent" to userAgent,
-                ) + (video.headers ?: emptyMap())
-            )
-            player.setMediaItem(
-                MediaItem.Builder()
-                    .setUri(video.source.toUri())
-                    .setMimeType(video.type)
-                    .setSubtitleConfigurations(video.subtitles.map { subtitle ->
-                        MediaItem.SubtitleConfiguration.Builder(subtitle.file.toUri())
-                            .setMimeType(subtitle.file.toSubtitleMimeType())
-                            .setLabel(subtitle.label)
-                            .setSelectionFlags(if (subtitle.default) C.SELECTION_FLAG_DEFAULT else 0)
-                            .build()
-                    })
-                    .setMediaMetadata(
-                        MediaMetadata.Builder()
-                            .setMediaServerId(server.id)
-                            .build()
-                    )
-                    .build()
-            )
+            val mediaItem = MediaItem.Builder()
+                .setUri(video.source.toUri())
+                .setMimeType(video.type)
+                .setSubtitleConfigurations(video.subtitles.map { subtitle ->
+                    MediaItem.SubtitleConfiguration.Builder(subtitle.file.toUri())
+                        .setMimeType(subtitle.file.toSubtitleMimeType())
+                        .setLabel(subtitle.label)
+                        .setSelectionFlags(if (subtitle.default) C.SELECTION_FLAG_DEFAULT else 0)
+                        .build()
+                })
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setMediaServerId(server.id)
+                        .build()
+                )
+                .build()
+
+            // WLFMOVIE YETI: Reproductor directo para YetiPelis (igual que test app)
+            // Cuando el toggle esta ON y el video es de YP, usa DefaultHttpDataSource
+            // (HttpURLConnection + system DNS + setAllowCrossProtocolRedirects) en vez
+            // de OkHttpDataSource. Mismo stack que la test app = mismo rendimiento.
+            val isYetiVideo = server.name.startsWith("YP ") ||
+                video.source.contains("moviemaster.lat") ||
+                video.source.contains("fastream.to")
+
+            if (isYetiVideo && UserPreferences.yetiDirectPlayer) {
+                val headers = video.headers ?: emptyMap()
+                val dsFactory = DefaultHttpDataSource.Factory()
+                    .setUserAgent(headers["User-Agent"] ?: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+                    .setDefaultRequestProperties(headers)
+                    .setAllowCrossProtocolRedirects(true)
+                val msFactory = DefaultMediaSourceFactory(requireContext())
+                    .setDataSourceFactory(dsFactory)
+                player.setMediaSource(msFactory.createMediaSource(mediaItem))
+            } else {
+                httpDataSource.setDefaultRequestProperties(
+                    mapOf(
+                        "User-Agent" to userAgent,
+                    ) + (video.headers ?: emptyMap())
+                )
+                player.setMediaItem(mediaItem)
+            }
 
             binding.pvPlayer.controller.binding.btnExoExternalPlayer.setOnClickListener {
                 val videoTitle = when (val type = args.videoType) {
@@ -1910,7 +1931,7 @@ class PlayerTvFragment : Fragment() {
 
             var tokenLogged = false
             val okHttpClient = OkHttpClient.Builder()
-                .dns(DnsResolver.doh)
+                .dns(Dns.SYSTEM)
                 .addInterceptor { chain ->
                     var request = chain.request()
                     
@@ -2135,7 +2156,7 @@ class PlayerTvFragment : Fragment() {
         val extraBuffering = PlayerSettingsView.Settings.ExtraBuffering.isEnabled
         currentExtraBuffering = extraBuffering
 
-        val okHttpClient = NetworkClient.default
+        val okHttpClient = NetworkClient.systemDns
         httpDataSource = OkHttpDataSource.Factory(okHttpClient)
 
         dataSourceFactory = DefaultDataSource.Factory(requireContext(), httpDataSource)

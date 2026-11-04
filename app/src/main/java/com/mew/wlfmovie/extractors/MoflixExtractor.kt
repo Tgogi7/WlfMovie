@@ -4,6 +4,7 @@ import android.util.Base64
 import androidx.media3.common.MimeTypes
 import com.mew.wlfmovie.models.Video
 import com.mew.wlfmovie.providers.MStreamProvider
+import com.mew.wlfmovie.utils.NetworkClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
@@ -94,8 +95,16 @@ class MoflixExtractor : Extractor() {
             private const val DEFAULT_USER_AGENT =
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0"
             fun build(baseUrl: String): Service {
+                /*
+                 * MOFLIX_SHARED_BROWSER_SESSION_V1
+                 *
+                 * Reuse Streamflix's CookieManager-backed client so a
+                 * previously established anti-bot/session cookie is also
+                 * available to TMDb-DE Moflix API requests.
+                 */
                 val retrofit = Retrofit.Builder()
                     .baseUrl(baseUrl)
+                    .client(NetworkClient.default)
                     .addConverterFactory(GsonConverterFactory.create())
                     .build()
 

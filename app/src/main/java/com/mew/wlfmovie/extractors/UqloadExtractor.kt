@@ -3,18 +3,23 @@ package com.mew.wlfmovie.extractors
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.mew.wlfmovie.models.Video
 import com.mew.wlfmovie.utils.DnsResolver
+import com.mew.wlfmovie.utils.JsUnpacker
+import com.mew.wlfmovie.utils.UserPreferences
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
 import retrofit2.Retrofit
+import retrofit2.http.Field
+import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.POST
 import retrofit2.http.Url
 import java.net.URL
-import com.mew.wlfmovie.utils.JsUnpacker
 
 class UqloadExtractor : Extractor() {
     override val name = "Uqload"
     override val mainUrl = "https://uqload.cx"
-    override val aliasUrls = listOf("https://uqload.is")
+    override val aliasUrls = listOf("https://uqload.is", "https://uqload.vc")
 
     companion object {
         private const val USER_AGENT =
@@ -24,10 +29,34 @@ class UqloadExtractor : Extractor() {
 
     override suspend fun extract(link: String): Video {
         val baseUrl = URL(link).protocol + "://" + URL(link).host
-        val service = Service.build(baseUrl)
-        val document = service.getSource(url = link)
+        val cleanLink = link.substringBefore("?").substringBefore("#").trimEnd('/')
 
-        val scripts = document.select("script[type=\"text/javascript\"]")
+        val providerReferer = try {
+            UserPreferences.currentProvider?.baseUrl?.takeIf { it.isNotBlank() }
+        } catch (_: Throwable) {
+            null
+        }
+        val referer = providerReferer?.let { if (!it.endsWith("/")) "$it/" else it } ?: "$baseUrl/"
+
+        val service = Service.build(baseUrl)
+        val document = if (cleanLink.contains("/embed-")) {
+            service.getSource(url = link, headerReferer = referer)
+        } else {
+            val fileCode = when {
+                cleanLink.contains("/e/") -> cleanLink.substringAfter("/e/").substringBefore("/")
+                else -> cleanLink.substringAfterLast("/")
+            }
+            service.postDl(
+                url = "${baseUrl.trimEnd('/')}/dl",
+                headerReferer = referer,
+                op = "embed",
+                fileCode = fileCode,
+                auto = "1",
+                referer = referer
+            )
+        }
+
+        val scripts = document.select("script")
         val scriptContent = scripts.find { it.html().contains("eval(function(p,a,c,k,e,d)") }?.html()
             ?: throw Exception("Script with eval function not found")
 
@@ -53,7 +82,19 @@ class UqloadExtractor : Extractor() {
     private interface Service {
         @GET
         suspend fun getSource(
-            @Url url: String
+            @Url url: String,
+            @Header("Referer") headerReferer: String
+        ): Document
+
+        @POST
+        @FormUrlEncoded
+        suspend fun postDl(
+            @Url url: String,
+            @Header("Referer") headerReferer: String,
+            @Field("op") op: String = "embed",
+            @Field("file_code") fileCode: String,
+            @Field("auto") auto: String = "1",
+            @Field("referer") referer: String = ""
         ): Document
 
         companion object {

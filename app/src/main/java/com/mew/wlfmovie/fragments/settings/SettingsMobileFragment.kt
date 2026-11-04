@@ -117,9 +117,23 @@ class SettingsMobileFragment : Fragment() {
             showTermsDialog()
         }
 
-        // WLFMOVIE V6.6.0: la sección "Descargas → Convertir a MP4" fue
-        // ELIMINADA por completo (el switch, su lógica y DownloadConverter).
-        // Ya no existe ninguna conversión ni re-codificación de audio.
+        // WLFMOVIE YETI: Toggle reproductor directo para YetiPelis.
+        // Boton definido en XML (btn_settings_yp_toggle) — confiable, no programatico.
+        binding.btnSettingsYpToggle.apply {
+            text = "Reproductor YetiPelis: ${if (UserPreferences.yetiDirectPlayer) "ACTIVADO" else "DESACTIVADO"}"
+            setOnClickListener {
+                UserPreferences.yetiDirectPlayer = !UserPreferences.yetiDirectPlayer
+                text = "Reproductor YetiPelis: ${if (UserPreferences.yetiDirectPlayer) "ACTIVADO" else "DESACTIVADO"}"
+                Toast.makeText(
+                    requireContext(),
+                    if (UserPreferences.yetiDirectPlayer)
+                        "Reproductor directo activado para YP"
+                    else
+                        "Reproductor directo desactivado",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
 
         updateUI()
     }

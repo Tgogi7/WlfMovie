@@ -7,6 +7,7 @@ import okhttp3.ResponseBody
 import retrofit2.Retrofit
 import retrofit2.http.GET
 import retrofit2.http.Query
+import retrofit2.http.Header
 import java.net.URL
 
 class StreamixExtractor : Extractor() {

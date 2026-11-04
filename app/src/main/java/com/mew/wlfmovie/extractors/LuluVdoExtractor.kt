@@ -15,7 +15,7 @@ class LuluVdoExtractor : Extractor() {
 
     override val name = "LuluVdo"
     override val mainUrl = "https://luluvdo.com/"
-    override val aliasUrls = listOf("https://luluvdoo.com", "https://luluvid.com")
+    override val aliasUrls = listOf("https://luluvdoo.com", "https://luluvid.com", "https://lulust.com")
 
     override suspend fun extract(link: String): Video {
         val service = Service.build(mainUrl)

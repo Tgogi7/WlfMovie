@@ -20,6 +20,7 @@ abstract class Extractor {
 
     companion object {
         private val extractors = listOf(
+            YetiExtractor(),  // WLFMOVIE: YetiPelis — debe ir primero (URLs m3u8 directas)
             RabbitstreamExtractor(),
             RabbitstreamExtractor.MegacloudExtractor(),
             RabbitstreamExtractor.DokicloudExtractor(),

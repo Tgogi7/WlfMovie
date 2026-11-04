@@ -1,5 +1,7 @@
 package com.mew.wlfmovie.extractors
 
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.mew.wlfmovie.models.Video
 import okhttp3.OkHttpClient

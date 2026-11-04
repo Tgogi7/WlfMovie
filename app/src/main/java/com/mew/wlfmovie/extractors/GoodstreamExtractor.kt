@@ -50,7 +50,7 @@ class GoodstreamExtractor : Extractor() {
         companion object {
             fun build(baseUrl: String): Service {
                 val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
+                
                 val client = OkHttpClient.Builder()
                     .addInterceptor { chain ->
                         val request = chain.request().newBuilder()

@@ -3,11 +3,13 @@ package com.mew.wlfmovie.extractors
 import android.os.Handler
 import android.os.Looper
 import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.media3.common.MimeTypes
 import com.mew.wlfmovie.StreamFlixApp
 import com.mew.wlfmovie.models.Video
+import com.mew.wlfmovie.utils.DnsResolver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext

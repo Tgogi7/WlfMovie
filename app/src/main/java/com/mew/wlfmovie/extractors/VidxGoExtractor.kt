@@ -33,7 +33,7 @@ class VidxGoExtractor : Extractor() {
             .url(link)
             .header("Referer", referer)
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
+        
         if (!link.contains("/t/")) {
             requestBuilder.header("sec-fetch-dest", "iframe")
         }
@@ -48,9 +48,9 @@ class VidxGoExtractor : Extractor() {
             val videoUrlRaw = Regex("\"url\"\\s*:\\s*\"([^\"]+)\"").find(html)?.groupValues?.get(1)
                 ?: throw Exception("VidxGo: Could not find url in TV series response")
             val videoUrl = videoUrlRaw.replace("\\/", "/")
-
+            
             var expireTime = Regex("\"expire\"\\s*:\\s*(\\d+)").find(html)?.groupValues?.get(1)?.toLongOrNull()
-
+            
             val initialUri = android.net.Uri.parse(videoUrl)
             TokenManager.latestQuery = initialUri.encodedQuery
             Log.d("TokenManager", "[INIT] Initial token set. expire=${expireTime}, query=${TokenManager.latestQuery?.take(60)}...")
@@ -84,7 +84,7 @@ class VidxGoExtractor : Extractor() {
                         if (!isSuccessful) {
                             Log.w("TokenManager", "[REFRESH] HTTP response error: $statusCode")
                         }
-
+                        
                         if (newHtml != null) {
                             expireTime = Regex("\"expire\"\\s*:\\s*(\\d+)").find(newHtml)?.groupValues?.get(1)?.toLongOrNull()
                             val newUrlStr = Regex("\"url\"\\s*:\\s*\"([^\"]+)\"").find(newHtml)?.groupValues?.get(1)?.replace("\\/", "/")
@@ -121,17 +121,17 @@ class VidxGoExtractor : Extractor() {
         // Search for the encrypted script blocks: (function() { var k = ... })()
         val scriptRegex = Regex("<script[\\s\\S]*?>[\\s\\S]*?\\(function\\(\\)\\s*\\{[\\s\\S]*?\\}\\s*\\)\\(\\);[\\s\\S]*?</script>", RegexOption.IGNORE_CASE)
         val scriptMatches = scriptRegex.findAll(html).toList()
-
+        
         var videoUrlRaw: String? = null
         var currentToken: String? = null
         var initialExpireRaw: Long? = null
-
+        
         for (match in scriptMatches) {
             val targetScript = match.value
-
+            
             val k = Regex("var\\s+k\\s*=\\s*['\"]([^'\"]+)['\"]").find(targetScript)?.groupValues?.get(1) ?: continue
             val d = Regex("atob\\(['\"]([^'\"]+)['\"]\\)").find(targetScript)?.groupValues?.get(1) ?: continue
-
+            
             try {
                 val decodedD = Base64.decode(d, Base64.DEFAULT)
                 val decrypted = ByteArray(decodedD.size)
@@ -140,9 +140,9 @@ class VidxGoExtractor : Extractor() {
                 }
 
                 val decryptedText = String(decrypted)
-
+                
                 videoUrlRaw = Regex("currentSrc\\s*=\\s*['\"]([^'\"]+)['\"]").find(decryptedText)?.groupValues?.get(1)
-
+                
                 if (videoUrlRaw != null) {
                     currentToken = Regex("let\\s+currentToken\\s*=\\s*['\"]([^'\"]+)['\"]").find(decryptedText)?.groupValues?.get(1)
                     initialExpireRaw = Regex("let\\s+currentExpire\\s*=\\s*(\\d+)").find(decryptedText)?.groupValues?.get(1)?.toLongOrNull()
@@ -153,7 +153,7 @@ class VidxGoExtractor : Extractor() {
                 continue
             }
         }
-
+        
         if (videoUrlRaw == null) {
             throw Exception("VidxGo: Could not find currentSrc in any encrypted script")
         }

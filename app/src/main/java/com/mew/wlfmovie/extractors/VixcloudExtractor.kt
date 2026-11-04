@@ -9,6 +9,7 @@ import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.mew.wlfmovie.models.Video
 import com.mew.wlfmovie.utils.NetworkClient
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
 import retrofit2.Retrofit
 import retrofit2.http.GET

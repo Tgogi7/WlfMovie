@@ -199,6 +199,12 @@ object UserPreferences {
             Key.FORCE_EXTRA_BUFFERING.setBoolean(value)
         }
 
+    var yetiDirectPlayer: Boolean
+        get() = Key.YETI_DIRECT_PLAYER.getBoolean() ?: false
+        set(value) {
+            Key.YETI_DIRECT_PLAYER.setBoolean(value)
+        }
+
     var autoplayBuffer: Long
         get() = Key.AUTOPLAY_BUFFER.getLong() ?: 3L
         set(value) {
@@ -574,6 +580,7 @@ object UserPreferences {
         TMDB_API_KEY,
         SUBDL_API_KEY,
         FORCE_EXTRA_BUFFERING,
+        YETI_DIRECT_PLAYER,
         AUTOPLAY_BUFFER,
         SERVER_AUTO_SUBTITLES_DISABLED,
         ENABLE_TMDB,

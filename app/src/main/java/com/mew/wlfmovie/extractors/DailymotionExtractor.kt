@@ -2,7 +2,9 @@ package com.mew.wlfmovie.extractors
 
 import java.util.Locale
 import java.util.UUID
+import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.mew.wlfmovie.models.Video
+import org.jsoup.nodes.Document
 import retrofit2.Retrofit
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody

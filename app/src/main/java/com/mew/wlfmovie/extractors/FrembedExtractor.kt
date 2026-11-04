@@ -26,7 +26,16 @@ class FrembedExtractor (var newUrl: String = "") : Extractor() {
     val defaultUrl = "https://frembed.casa"
     override var mainUrl = newUrl.ifBlank { defaultUrl }
 
+    data class FrembedHost(val name: String?)
+    data class FrembedLink(
+        val url: String?,
+        val label: String?,
+        val lang: String?,
+        val host: FrembedHost?
+    )
+
     data class listLinks (
+        val links: List<FrembedLink>?=null,
         val link1: String?=null,
         val link2: String?=null,
         val link3: String?=null,
@@ -67,18 +76,37 @@ class FrembedExtractor (var newUrl: String = "") : Extractor() {
     }
 
     fun listLinks.toServers(): List<Video.Server> {
-        return listOf(link1, link2, link3, link4, link5, link6, link7,
-                                         link1vostfr, link2vostfr, link3vostfr, link4vostfr, link5vostfr, link6vostfr, link7vostfr,
-                                         link1vo, link2vo, link3vo, link4vo, link5vo, link6vo, link7vo)
-            .mapIndexedNotNull { index, data ->
-                if (data.isNullOrEmpty()) return@mapIndexedNotNull null
-                val lang = when { index < 7 -> "French"
-                                  index < 14 -> "VOSTFR"
-                                  else -> "VO" }
-                (if (data.startsWith("/")) mainUrl.removeSuffix("/") + data else data).let {
-                    Video.Server(id = "link$index", name = "${getExtractorName(it)} ($lang)", src = it)
+        val servers = mutableListOf<Video.Server>()
+        if (!links.isNullOrEmpty()) {
+            links.forEachIndexed { index, link ->
+                val url = link.url
+                if (!url.isNullOrEmpty()) {
+                    val lang = when (link.lang) {
+                        "vf" -> "French"
+                        "vostfr" -> "VOSTFR"
+                        "vo" -> "VO"
+                        else -> link.lang?.uppercase() ?: "Unknown"
+                    }
+                    val fullUrl = if (url.startsWith("/")) mainUrl.removeSuffix("/") + url else url
+                    val serverName = "${link.host?.name ?: link.label ?: getExtractorName(fullUrl)} ($lang)"
+                    servers.add(Video.Server(id = "link_new_$index", name = serverName, src = fullUrl))
                 }
             }
+        } else {
+            listOf(link1, link2, link3, link4, link5, link6, link7,
+                                             link1vostfr, link2vostfr, link3vostfr, link4vostfr, link5vostfr, link6vostfr, link7vostfr,
+                                             link1vo, link2vo, link3vo, link4vo, link5vo, link6vo, link7vo)
+                .forEachIndexed { index, data ->
+                    if (!data.isNullOrEmpty()) {
+                        val lang = when { index < 7 -> "French"
+                                          index < 14 -> "VOSTFR"
+                                          else -> "VO" }
+                        val fullUrl = if (data.startsWith("/")) mainUrl.removeSuffix("/") + data else data
+                        servers.add(Video.Server(id = "link$index", name = "${getExtractorName(fullUrl)} ($lang)", src = fullUrl))
+                    }
+                }
+        }
+        return servers
     }
 
     private interface Service {
@@ -159,9 +187,17 @@ class FrembedExtractor (var newUrl: String = "") : Extractor() {
                             val redirect = response.headers()["Location"]
                             if (!redirect.isNullOrEmpty()) {
                                 val fullRedirect = if (redirect.startsWith("//")) "https:$redirect" else redirect
+                                val rawName = server.name.substringBefore(" (")
                                 val lang = server.name.substringAfter(" (").substringBefore(")")
-                                val resolvedName = "${getExtractorName(fullRedirect)} ($lang)"
+                                
+                                val finalRawName = if (rawName.equals("Frembed", ignoreCase = true)) {
+                                    getExtractorName(fullRedirect)
+                                } else {
+                                    rawName
+                                }
+                                val resolvedName = "Frembed - $finalRawName ($lang)"
                                 Log.d("FrembedExtractor", "Resolved server ${server.name} to: $resolvedName - redirect: $fullRedirect")
+
                                 server.copy(
                                     name = resolvedName,
                                     src = fullRedirect

@@ -1,5 +1,7 @@
 package com.mew.wlfmovie.extractors
 
+import android.net.Uri
+import android.util.Base64
 import com.mew.wlfmovie.models.Video
 import com.mew.wlfmovie.utils.DnsResolver
 import com.mew.wlfmovie.utils.JsUnpacker
@@ -21,12 +23,11 @@ class FsvidExtractor : Extractor() {
 
     private val client = OkHttpClient.Builder()
         .addInterceptor { chain ->
+            val referer = UserPreferences.currentProvider?.baseUrl?.takeIf { it.isNotBlank() } ?: "$mainUrl/"
             val newRequest = chain.request()
                 .newBuilder()
                 .header("User-Agent", DEFAULT_USER_AGENT)
-                .apply {
-                    UserPreferences.currentProvider?.baseUrl?.let { header("Referer", it) }
-                }
+                .header("Referer", referer)
                 .build()
             chain.proceed(newRequest)
         }
@@ -45,6 +46,35 @@ class FsvidExtractor : Extractor() {
         suspend fun get(@Url url: String): String
     }
 
+    private fun decryptSource(fnCode: String, s: String, link: String): String = runCatching {
+        val host = Uri.parse(link).host ?: return@runCatching ""
+        var H = 0
+        for (ch in host) {
+            H = (H + ch.code) and 0xFF
+        }
+
+        val extraPx = Regex("""calc\(1in\s*\+\s*(\d+)px\)""").find(fnCode)?.groupValues?.get(1)?.toIntOrNull() ?: 56
+        val pct = Regex("""width:(\d+)%""").find(fnCode)?.groupValues?.get(1)?.toDoubleOrNull()?.div(100.0) ?: 0.5
+        val bc = ((96 + extraPx) * pct).toInt()
+
+        val kkMatch = Regex("""kk\s*=\s*\(\s*(0x[0-9a-fA-F]+|\d+)\s*\+\s*i\s*\*\s*(\d+)""").find(fnCode)
+        val baseXor = kkMatch?.groupValues?.get(1)?.let {
+            if (it.startsWith("0x", ignoreCase = true)) it.substring(2).toIntOrNull(16) else it.toIntOrNull()
+        } ?: 0x3d
+        val step = kkMatch?.groupValues?.get(2)?.toIntOrNull() ?: 89
+
+        val decodedBytes = Base64.decode(s, Base64.DEFAULT)
+        val reversed = decodedBytes.reversedArray()
+        val r = StringBuilder()
+        for (i in reversed.indices) {
+            val kk = (baseXor + i * step + H + bc) and 0xFF
+            val byteVal = reversed[i].toInt() and 0xFF
+            r.append((byteVal xor kk).toChar())
+        }
+        val url = r.toString()
+        if (url.startsWith("http")) url else ""
+    }.getOrDefault("")
+
     override suspend fun extract(link: String): Video {
         val html = service.get(link)
 
@@ -56,12 +86,26 @@ class FsvidExtractor : Extractor() {
         if (!scriptData.startsWith("eval")) throw Exception("Packed JS not found")
         val unpacked = JsUnpacker(scriptData).unpack() ?: throw Exception("Unpack failed")
 
-        val fileRegex = Regex("""src\s*:\s*["']([^"']+)["']""")
-        val m3u8 = fileRegex.find(unpacked)?.groupValues?.get(1)
-            ?: throw Exception("Stream URL not found in src field")
+        val plainUrl = Regex("""src\s*:\s*["'](https?://[^"']+)["']""").find(unpacked)?.groupValues?.get(1)
+        val funcMatch = Regex("""sources:\s*\[\s*\{\s*src\s*:\s*\((function\(s\)\{.*?\})\)\s*\(\s*["']([^"']+)["']""")
+            .find(unpacked)
+            ?: Regex("""\((function\(s\)\{.*?\})\)\s*\(\s*["']([A-Za-z0-9+/=]+)["']""").find(unpacked)
+
+        val m3u8 = plainUrl ?: funcMatch?.let { match ->
+            val fnCode = match.groupValues[1]
+            val sArg = match.groupValues[2]
+            decryptSource(fnCode, sArg, link)
+        }?.takeIf { it.isNotEmpty() }
+            ?: throw Exception("Stream URL not found")
+
+        val referer = UserPreferences.currentProvider?.baseUrl?.takeIf { it.isNotBlank() } ?: "$mainUrl/"
 
         return Video(
-            source = m3u8
+            source = m3u8,
+            headers = mapOf(
+                "User-Agent" to DEFAULT_USER_AGENT,
+                "Referer" to referer,
+            )
         )
     }
 }

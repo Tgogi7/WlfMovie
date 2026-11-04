@@ -43,7 +43,7 @@ class VidHideExtractor: Extractor() {
             fallback
         }
         val origin = referer
-
+        
         val source = service.getSource(
             url = link,
             referer = referer,
@@ -65,7 +65,7 @@ class VidHideExtractor: Extractor() {
             }
 
         val finalUrl = links["hls4"] ?: links["hls2"] ?: throw Exception("No HLS link found")
-
+        
         // Add domain if the URL starts with "/"
         val completeUrl = if (finalUrl.startsWith("/")) {
             val baseUrl = URL(link).protocol + "://" + URL(link).host

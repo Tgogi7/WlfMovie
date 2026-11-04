@@ -2,8 +2,8 @@ package com.mew.wlfmovie.extractors
 
 import android.util.Base64
 import com.mew.wlfmovie.models.Video
-import com.mew.wlfmovie.utils.JsUnpacker
 import com.mew.wlfmovie.utils.DnsResolver
+import com.mew.wlfmovie.utils.JsUnpacker
 import retrofit2.http.GET
 import retrofit2.http.Url
 import retrofit2.Retrofit
