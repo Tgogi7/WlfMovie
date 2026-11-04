@@ -14,6 +14,7 @@ import com.mew.wlfmovie.utils.CustomTabHelper
 import com.mew.wlfmovie.utils.EpisodeManager
 import com.mew.wlfmovie.utils.OpenSubtitles
 import com.mew.wlfmovie.utils.UserPreferences
+import com.mew.wlfmovie.utils.YpDirectPlay
 import com.mew.wlfmovie.utils.format
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -186,6 +187,17 @@ class PlayerViewModel(
         // Video de file:// directamente sin llamar al provider. El progreso de
         // reproduccion se guardara solo en `downloads.watchPositionMillis`.
         if (tryEmitOfflineVideo(videoType, id)) {
+            return@launch
+        }
+
+        // WLFMOVIE YETI: Si hay servers YP pendientes (botón "Reproducir con YP"
+        // en la pagina de detalles), emitirlos directamente sin llamar al provider.
+        // El player auto-seleccionara el primero y lo reproducira con
+        // DefaultHttpDataSource (porque yetiDirectPlayer esta ON y el server es YP).
+        val ypServers = YpDirectPlay.consumePendingServers()
+        if (ypServers != null && ypServers.isNotEmpty()) {
+            Log.i("WlfMovie", "[PlayerVM] YP direct play: ${ypServers.size} servers pre-resueltos")
+            _state.emit(State.SuccessLoadingServers(ypServers))
             return@launch
         }
 

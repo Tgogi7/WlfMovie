@@ -198,6 +198,31 @@
         app:layout_constraintStart_toStartOf="@id/guideline_middle"
         app:layout_constraintTop_toTopOf="@id/iv_movie_poster" />
 
+    <!-- WLFMOVIE YETI: Botón "Reproducir con YP" — visible solo cuando el toggle esta ON -->
+    <TextView
+        android:id="@+id/btn_movie_yp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/wlf_bg_secondary_button_details"
+        android:clickable="true"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:gravity="center"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:text="Reproducir con YP"
+        android:textColor="@color/wlf_fuchsia_neon"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@id/guideline_middle"
+        app:layout_constraintTop_toBottomOf="@id/btn_movie_watch_now"
+        tools:visibility="visible" />
+
     <!-- Barra de progreso oculta (mantiene ID para que ViewHolder no rompa).
          En TV no mostramos la barra gris, mostramos texto "Visto XX min". -->
     <ProgressBar

@@ -149,7 +149,7 @@
                 android:id="@+id/btn_settings_terms"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="48dp"
+                android:layout_marginBottom="16dp"
                 android:background="@drawable/wlf_bg_icon_button_tv"
                 android:clickable="true"
                 android:focusable="true"
@@ -160,6 +160,25 @@
                 android:text="Términos y condiciones"
                 android:textColor="@color/wlf_fuchsia_neon"
                 android:textSize="18sp" />
+
+            <!-- WLFMOVIE YETI: Toggle reproductor directo para YetiPelis -->
+            <TextView
+                android:id="@+id/btn_settings_yp_toggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="48dp"
+                android:background="@drawable/wlf_bg_icon_button_tv"
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:text="Reproductor YetiPelis: DESACTIVADO"
+                android:textColor="@color/wlf_text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
 
             <!-- Separador -->
             <View

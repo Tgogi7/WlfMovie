@@ -89,7 +89,9 @@ import com.mew.wlfmovie.utils.ArtworkRepair
 import com.mew.wlfmovie.utils.toActivity
 import java.util.Locale
 import com.mew.wlfmovie.utils.UserPreferences
+import com.mew.wlfmovie.utils.YpDirectPlay
 import com.mew.wlfmovie.providers.Provider
+import com.mew.wlfmovie.providers.YetiPelisProvider
 import android.view.KeyEvent
 import com.mew.wlfmovie.databinding.ContentMovieDirectorsMobileBinding
 import com.mew.wlfmovie.databinding.ContentMovieDirectorsTvBinding
@@ -197,6 +199,73 @@ class MovieViewHolder(
             }
         }
         action()
+    }
+
+    /**
+     * WLFMOVIE YETI: Reproduce directamente con servers de YetiPelis.
+     *
+     * Llama a YetiPelisProvider.searchServers(), guarda los servers en
+     * YpDirectPlay (singleton puente) y navega al PlayerFragment.
+     * El PlayerViewModel detecta los servers pendientes y los emite directamente
+     * (sin llamar al provider), y displayVideo() usa DefaultHttpDataSource
+     * porque el toggle yetiDirectPlayer esta ON y el server empieza con "YP ".
+     */
+    private fun playWithYeti(movie: Movie, isTv: Boolean) {
+        val lifecycleOwner = itemView.findViewTreeLifecycleOwner() ?: return
+        val navController = itemView.findNavController()
+
+        Toast.makeText(context, "Buscando servers YetiPelis...", Toast.LENGTH_SHORT).show()
+
+        lifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val servers = YetiPelisProvider.searchServers(
+                    title = movie.title,
+                    isMovie = true,
+                    expectTmdbId = movie.id.toIntOrNull(),
+                )
+
+                withContext(Dispatchers.Main) {
+                    if (servers.isNullOrEmpty()) {
+                        Toast.makeText(context, "No se encontraron servers YP", Toast.LENGTH_SHORT).show()
+                        return@withContext
+                    }
+
+                    YpDirectPlay.setPendingServers(servers)
+
+                    val videoType = Video.Type.Movie(
+                        id = movie.id,
+                        title = movie.title,
+                        releaseDate = movie.released?.format("yyyy-MM-dd") ?: "",
+                        poster = movie.poster ?: movie.banner ?: "",
+                        imdbId = movie.imdbId,
+                    )
+
+                    if (isTv) {
+                        navController.navigate(
+                            MovieTvFragmentDirections.actionMovieToPlayer(
+                                id = movie.id,
+                                title = movie.title,
+                                subtitle = movie.released?.format("yyyy") ?: "",
+                                videoType = videoType,
+                            )
+                        )
+                    } else {
+                        navController.navigate(
+                            MovieMobileFragmentDirections.actionMovieToPlayer(
+                                id = movie.id,
+                                title = movie.title,
+                                subtitle = movie.released?.format("yyyy") ?: "",
+                                videoType = videoType,
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Error YP: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     private fun isPackageInstalled(packageName: String): Boolean {
@@ -766,6 +835,14 @@ class MovieViewHolder(
                         videoType = Video.Type.Movie(id = movie.id, title = movie.title, releaseDate = movie.released?.format("yyyy-MM-dd") ?: "", poster = movie.poster ?: movie.banner ?: "", imdbId = movie.imdbId),
                     ))
                 }
+            }
+        }
+
+        // WLFMOVIE YETI: Botón "Reproducir con YP" — visible solo si el toggle esta ON
+        binding.btnMovieYp.apply {
+            visibility = if (UserPreferences.yetiDirectPlayer) View.VISIBLE else View.GONE
+            setOnClickListener {
+                playWithYeti(movie, isTv = false)
             }
         }
 
@@ -1548,6 +1625,14 @@ class MovieViewHolder(
                         videoType = Video.Type.Movie(id = movie.id, title = movie.title, releaseDate = movie.released?.format("yyyy-MM-dd") ?: "", poster = movie.poster ?: movie.banner ?: "", imdbId = movie.imdbId),
                     ))
                 }
+            }
+        }
+
+        // WLFMOVIE YETI: Botón "Reproducir con YP" — visible solo si el toggle esta ON
+        binding.btnMovieYp.apply {
+            visibility = if (UserPreferences.yetiDirectPlayer) View.VISIBLE else View.GONE
+            setOnClickListener {
+                playWithYeti(movie, isTv = true)
             }
         }
 
