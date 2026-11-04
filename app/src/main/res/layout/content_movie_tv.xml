@@ -171,13 +171,19 @@
         app:layout_constraintTop_toBottomOf="@id/ll_movie_tags"
         tools:text="Acción, Aventura, Ciencia ficción" />
 
-    <!-- ===== COLUMNA DERECHA: botón Ver película (centrado verticalmente con el backdrop) ===== -->
+    <!-- ===== COLUMNA DERECHA: botones Ver película + YP (centrados verticalmente con el backdrop) =====
+         Cadena horizontal "packed": watch_now <-> YP. Cuando YP está GONE,
+         ConstraintLayout trata el constraint de watch_now hacia YP como
+         "gone constraint" y aplic el goneMarginEnd. Para evitar que watch_now
+         se quede pegado a la izquierda cuando YP está GONE, también añadimos
+         constraintEnd_toEndOf="parent" — cuando YP desaparece, ese constraint
+         toma el relevo y watch_now se centra en la columna derecha. -->
     <TextView
         android:id="@+id/btn_movie_watch_now"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="32dp"
-        android:layout_marginEnd="48dp"
+        android:layout_marginEnd="12dp"
         android:background="@drawable/wlf_bg_play_button_details"
         android:clickable="true"
         android:drawableStart="@drawable/wlf_ic_play"
@@ -185,42 +191,48 @@
         android:drawableTint="@color/wlf_text_primary"
         android:focusable="true"
         android:gravity="center"
-        android:paddingStart="32dp"
-        android:paddingEnd="32dp"
-        android:paddingTop="16dp"
-        android:paddingBottom="16dp"
-        android:text="Ver película"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:text="Reproducir"
         android:textColor="@color/wlf_text_primary"
-        android:textSize="20sp"
+        android:textSize="18sp"
         android:textStyle="bold"
         app:layout_constraintBottom_toBottomOf="@id/iv_movie_poster"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_chainStyle="packed"
         app:layout_constraintStart_toStartOf="@id/guideline_middle"
         app:layout_constraintTop_toTopOf="@id/iv_movie_poster" />
 
-    <!-- WLFMOVIE YETI: Botón "Reproducir con YP" — visible solo cuando el toggle esta ON -->
+    <!-- WLFMOVIE YETI v6: Botón "Reproducir con YP" (segundo reproductor).
+         Visible solo cuando el toggle "Segundo reproductor (Opción 2)" está ON.
+         Usa el mismo stack que la test app (DefaultHttpDataSource).
+         Layout: se ancla a la derecha de btn_movie_watch_now. Cuando está GONE,
+         el constraint de watch_now a este botón no aplica (gone constraint). -->
     <TextView
         android:id="@+id/btn_movie_yp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginEnd="48dp"
         android:background="@drawable/wlf_bg_secondary_button_details"
         android:clickable="true"
         android:focusable="true"
         android:focusableInTouchMode="true"
         android:gravity="center"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp"
-        android:text="Reproducir con YP"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:text="🐢 YP"
         android:textColor="@color/wlf_fuchsia_neon"
-        android:textSize="16sp"
+        android:textSize="18sp"
         android:textStyle="bold"
         android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/btn_movie_watch_now"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="@id/guideline_middle"
-        app:layout_constraintTop_toBottomOf="@id/btn_movie_watch_now"
+        app:layout_constraintStart_toEndOf="@id/btn_movie_watch_now"
+        app:layout_constraintTop_toTopOf="@id/btn_movie_watch_now"
         tools:visibility="visible" />
 
     <!-- Barra de progreso oculta (mantiene ID para que ViewHolder no rompa).

@@ -558,6 +558,49 @@ class TvShowViewHolder(
             text = if (isIptvProvider()) context.getString(R.string.movie_watch_now) else context.getString(R.string.tv_show_watch_season_episode, episodeSeason?.number ?: 1, episodeToWatch?.number ?: 1)
         }
 
+        // WLFMOVIE YETI v8: Botón "Opción 2" (YP) para series en mobile.
+        // Usa el mismo episodeToWatch que el botón "Ver T1 E1" / "Ver Tx Ex".
+        binding.btnTvShowYp.apply {
+            isVisible = episodeToWatch != null && com.mew.wlfmovie.utils.UserPreferences.yetiDirectPlayer
+            setOnClickListener {
+                if (episodeToWatch == null) return@setOnClickListener
+                try {
+                    com.mew.wlfmovie.utils.CrashLogger.logError(
+                        tag = "YP-Player",
+                        message = "[TvShowHolder Mobile] Botón Opción 2 presionado | tvShow=${tvShow.title} | S${episodeSeason?.number ?: 1}E${episodeToWatch.number}",
+                        context = "TvShowViewHolder.playWithYeti"
+                    )
+                } catch (_: Exception) {}
+                com.mew.wlfmovie.utils.YpDirectPlay.requestYp()
+                val videoType = Video.Type.Episode(
+                    id = episodeToWatch.id,
+                    number = episodeToWatch.number,
+                    title = episodeToWatch.title,
+                    poster = episodeToWatch.poster,
+                    overview = episodeToWatch.overview,
+                    tvShow = Video.Type.Episode.TvShow(
+                        id = tvShow.id,
+                        title = tvShow.title,
+                        poster = tvShow.poster,
+                        banner = tvShow.banner,
+                        releaseDate = tvShow.released?.format("yyyy-MM-dd"),
+                        imdbId = tvShow.imdbId,
+                    ),
+                    season = Video.Type.Episode.Season(
+                        number = episodeSeason?.number ?: 1,
+                        title = episodeSeason?.title ?: "",
+                    ),
+                )
+                val args = Bundle().apply {
+                    putString("id", episodeToWatch.id)
+                    putString("title", tvShow.title)
+                    putString("subtitle", "S${videoType.season.number} E${videoType.number}  •  ${videoType.title}")
+                    putSerializable("videoType", videoType)
+                }
+                findNavController().navigate(R.id.player, args)
+            }
+        }
+
         binding.pbTvShowProgressEpisode.apply {
             val watchHistory = episodeToWatch?.watchHistory
             progress = when {
@@ -707,6 +750,52 @@ binding.btnTvShowFavorite.apply {
                 }
             }
             text = if (isIptvProvider()) context.getString(R.string.movie_watch_now) else context.getString(R.string.tv_show_watch_season_episode, episodeSeason?.number ?: 1, episodeToWatch?.number ?: 1)
+        }
+
+        // WLFMOVIE YETI v8: Botón "Opción 2" (YP) para series.
+        // Usa el mismo episodeToWatch que el botón "Ver T1 E1" / "Ver Tx Ex".
+        // Visible solo si el toggle "Segundo reproductor" está ON.
+        // Si el usuario ya vio hasta T2 E5, este botón reproduce T2 E5 con YP
+        // (no siempre T1 E1).
+        binding.btnTvShowYp?.apply {
+            isVisible = episodeToWatch != null && com.mew.wlfmovie.utils.UserPreferences.yetiDirectPlayer
+            setOnClickListener {
+                if (episodeToWatch == null) return@setOnClickListener
+                try {
+                    com.mew.wlfmovie.utils.CrashLogger.logError(
+                        tag = "YP-Player",
+                        message = "[TvShowHolder] Botón Opción 2 presionado | tvShow=${tvShow.title} | S${episodeSeason?.number ?: 1}E${episodeToWatch.number}",
+                        context = "TvShowViewHolder.playWithYeti"
+                    )
+                } catch (_: Exception) {}
+                com.mew.wlfmovie.utils.YpDirectPlay.requestYp()
+                val videoType = Video.Type.Episode(
+                    id = episodeToWatch.id,
+                    number = episodeToWatch.number,
+                    title = episodeToWatch.title,
+                    poster = episodeToWatch.poster,
+                    overview = episodeToWatch.overview,
+                    tvShow = Video.Type.Episode.TvShow(
+                        id = tvShow.id,
+                        title = tvShow.title,
+                        poster = tvShow.poster,
+                        banner = tvShow.banner,
+                        releaseDate = tvShow.released?.format("yyyy-MM-dd"),
+                        imdbId = tvShow.imdbId,
+                    ),
+                    season = Video.Type.Episode.Season(
+                        number = episodeSeason?.number ?: 1,
+                        title = episodeSeason?.title ?: "",
+                    ),
+                )
+                val args = Bundle().apply {
+                    putString("id", episodeToWatch.id)
+                    putString("title", tvShow.title)
+                    putString("subtitle", "S${videoType.season.number} E${videoType.number}  •  ${videoType.title}")
+                    putSerializable("videoType", videoType)
+                }
+                findNavController().navigate(R.id.player, args)
+            }
         }
 
         binding.pbTvShowProgressEpisode.apply {
@@ -989,7 +1078,7 @@ binding.btnTvShowFavorite.apply {
                             item.text = "E${episode.number} · ${episode.title ?: ""}"
                             item.setOnClickListener {
                                 dialog.dismiss()
-                                // Navegar al player con este episodio
+                                // Construir el videoType para este episodio
                                 val videoType = com.mew.wlfmovie.models.Video.Type.Episode(
                                     id = episode.id,
                                     number = episode.number,
@@ -1015,7 +1104,45 @@ binding.btnTvShowFavorite.apply {
                                     putString("subtitle", "S${season.number} E${episode.number}  •  ${episode.title}")
                                     putSerializable("videoType", videoType)
                                 }
-                                navController.navigate(com.mew.wlfmovie.R.id.player, args)
+
+                                // WLFMOVIE YETI v9: Si el toggle está ON, preguntar método.
+                                // Si está OFF, ir directo al player normal.
+                                if (com.mew.wlfmovie.utils.UserPreferences.yetiDirectPlayer) {
+                                    // Diálogo WlfMovie con el mismo diseño morado-fucsia
+                                    val methodDialog = android.app.Dialog(context)
+                                    val methodView = android.view.LayoutInflater.from(context)
+                                        .inflate(com.mew.wlfmovie.R.layout.wlf_dialog_list, null)
+                                    methodView.findViewById<android.widget.TextView>(com.mew.wlfmovie.R.id.tv_dialog_title).text = "Método de reproducción"
+                                    val methodContainer = methodView.findViewById<android.widget.LinearLayout>(com.mew.wlfmovie.R.id.ll_dialog_items)
+
+                                    val normalItem = android.view.LayoutInflater.from(context)
+                                        .inflate(com.mew.wlfmovie.R.layout.wlf_dialog_list_item, methodContainer, false) as android.widget.TextView
+                                    normalItem.text = "▶ Reproducir normal"
+                                    normalItem.setOnClickListener {
+                                        methodDialog.dismiss()
+                                        com.mew.wlfmovie.utils.YpDirectPlay.markNormalAttempt()
+                                        navController.navigate(com.mew.wlfmovie.R.id.player, args)
+                                    }
+                                    methodContainer.addView(normalItem)
+
+                                    val ypItem = android.view.LayoutInflater.from(context)
+                                        .inflate(com.mew.wlfmovie.R.layout.wlf_dialog_list_item, methodContainer, false) as android.widget.TextView
+                                    ypItem.text = "🐢 Opción 2"
+                                    ypItem.setTextColor(ContextCompat.getColor(context, com.mew.wlfmovie.R.color.wlf_fuchsia_neon))
+                                    ypItem.setOnClickListener {
+                                        methodDialog.dismiss()
+                                        com.mew.wlfmovie.utils.YpDirectPlay.requestYp()
+                                        navController.navigate(com.mew.wlfmovie.R.id.player, args)
+                                    }
+                                    methodContainer.addView(ypItem)
+
+                                    methodDialog.setContentView(methodView)
+                                    methodDialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+                                    methodDialog.show()
+                                } else {
+                                    com.mew.wlfmovie.utils.YpDirectPlay.markNormalAttempt()
+                                    navController.navigate(com.mew.wlfmovie.R.id.player, args)
+                                }
                             }
                             container.addView(item)
                         }

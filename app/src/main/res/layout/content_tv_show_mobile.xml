@@ -189,7 +189,7 @@
         app:layout_constraintTop_toBottomOf="@id/ll_tv_show_tags"
         tools:text="Fantasía, Drama, Aventura" />
 
-    <!-- ===== BOTONES: Ver T1 E1 + Ver temporadas ===== -->
+    <!-- ===== BOTONES: Ver T1 E1 + YP (fila 1) + Ver temporadas (fila 2) ===== -->
     <LinearLayout
         android:id="@+id/ll_tv_show_buttons"
         android:layout_width="0dp"
@@ -220,9 +220,11 @@
             android:textSize="16sp"
             android:textStyle="bold" />
 
-        <!-- Botón Ver temporadas (NUEVO) -->
+        <!-- WLFMOVIE YETI v9: Botón "Opción 2" (YP) para series en mobile.
+             Usa el mismo episodio actual (episodeToWatch) que el botón "Ver T1 E1".
+             Visible solo si el toggle "Segundo reproductor" está ON. -->
         <TextView
-            android:id="@+id/btn_tv_show_seasons"
+            android:id="@+id/btn_tv_show_yp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
@@ -230,13 +232,35 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
-            android:text="Ver temporadas"
-            android:textColor="@color/wlf_text_primary"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:text="🐢 YP"
+            android:textColor="@color/wlf_fuchsia_neon"
             android:textSize="16sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:visibility="visible" />
     </LinearLayout>
 
-    <!-- Barra de progreso del episodio -->
+    <!-- WLFMOVIE YETI v9: Botón Ver temporadas DEBAJO de los botones de reproducción. -->
+    <TextView
+        android:id="@+id/btn_tv_show_seasons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/wlf_bg_secondary_button_details"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:text="Ver temporadas"
+        android:textColor="@color/wlf_text_primary"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ll_tv_show_buttons" />
+
+    <!-- Barra de progreso del episodio — debajo de Ver temporadas -->
     <ProgressBar
         android:id="@+id/pb_tv_show_progress_episode"
         style="@android:style/Widget.ProgressBar.Horizontal"
@@ -250,13 +274,13 @@
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/ll_tv_show_buttons"
+        app:layout_constraintTop_toBottomOf="@id/btn_tv_show_seasons"
         tools:progress="80"
         tools:visibility="visible" />
 
     <!-- Botón Tráiler eliminado por petición del usuario -->
 
-    <!-- ===== SINOPSIS ===== -->
+    <!-- ===== SINOPSIS — debajo de la barra de progreso ===== -->
     <TextView
         android:id="@+id/tv_tv_show_overview"
         android:layout_width="0dp"

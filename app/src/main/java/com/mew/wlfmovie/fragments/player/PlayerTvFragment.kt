@@ -76,6 +76,7 @@ import com.mew.wlfmovie.models.WatchItem
 import com.mew.wlfmovie.providers.SerienStreamProvider
 import androidx.media3.ui.PlayerView
 import com.mew.wlfmovie.ui.PlayerTvView
+import com.mew.wlfmovie.utils.CrashLogger
 import com.mew.wlfmovie.utils.DnsResolver
 import com.mew.wlfmovie.utils.NetworkClient
 import okhttp3.Dns
@@ -1180,24 +1181,67 @@ class PlayerTvFragment : Fragment() {
                 )
                 .build()
 
-            // WLFMOVIE YETI: Reproductor directo para YetiPelis (igual que test app)
-            // Cuando el toggle esta ON y el video es de YP, usa DefaultHttpDataSource
-            // (HttpURLConnection + system DNS + setAllowCrossProtocolRedirects) en vez
-            // de OkHttpDataSource. Mismo stack que la test app = mismo rendimiento.
-            val isYetiVideo = server.name.startsWith("YP ") ||
-                video.source.contains("moviemaster.lat") ||
-                video.source.contains("fastream.to")
+            // WLFMOVIE YETI v8: ¿Es este video parte de una reproducción YP?
+            // El botón "Reproducir" normal nunca usa YP, solo el botón "Opción 2"
+            // (que hace que YetiPelisProvider devuelva servers con nombre "YP ...").
+            // Detectamos YP mirando el server name.
+            val isYpServer = server.name.startsWith("YP ")
 
-            if (isYetiVideo && UserPreferences.yetiDirectPlayer) {
+            CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[TV] displayVideo() llamado | isYpServer=$isYpServer | isYpToggle=${UserPreferences.yetiDirectPlayer} | server=${server.name} | source=${video.source.take(120)} | mimeType=${video.type} | hasHeaders=${video.headers != null}",
+                context = "PlayerTvFragment.displayVideo"
+            )
+
+            if (isYpServer && UserPreferences.yetiDirectPlayer) {
+                // === FLUJO TEST APP (segundo reproductor) ===
                 val headers = video.headers ?: emptyMap()
-                val dsFactory = DefaultHttpDataSource.Factory()
-                    .setUserAgent(headers["User-Agent"] ?: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+                val uaHeader = headers["User-Agent"]
+                    ?: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+                CrashLogger.logError(
+                    tag = "YP-Player",
+                    message = "[TV] Creando DefaultHttpDataSource.Factory fresco | UA=${uaHeader.take(60)} | headers=${headers.keys} | allowCrossProtocolRedirects=true",
+                    context = "PlayerTvFragment.displayVideo"
+                )
+
+                val ypDsFactory = DefaultHttpDataSource.Factory()
+                    .setUserAgent(uaHeader)
                     .setDefaultRequestProperties(headers)
                     .setAllowCrossProtocolRedirects(true)
-                val msFactory = DefaultMediaSourceFactory(requireContext())
-                    .setDataSourceFactory(dsFactory)
-                player.setMediaSource(msFactory.createMediaSource(mediaItem))
+                    .setConnectTimeoutMs(8_000)
+                    .setReadTimeoutMs(8_000)
+
+                val ypMsFactory = DefaultMediaSourceFactory(requireContext())
+                    .setDataSourceFactory(ypDsFactory)
+
+                // MediaItem SIN setMimeType (igual que test app)
+                val ypMediaItem = MediaItem.Builder()
+                    .setUri(video.source.toUri())
+                    .setSubtitleConfigurations(video.subtitles.map { subtitle ->
+                        MediaItem.SubtitleConfiguration.Builder(subtitle.file.toUri())
+                            .setMimeType(subtitle.file.toSubtitleMimeType())
+                            .setLabel(subtitle.label)
+                            .setSelectionFlags(if (subtitle.default) C.SELECTION_FLAG_DEFAULT else 0)
+                            .build()
+                    })
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setMediaServerId(server.id)
+                            .build()
+                    )
+                    .build()
+
+                CrashLogger.logError(
+                    tag = "YP-Player",
+                    message = "[TV] setMediaSource (test app style) | uri=${video.source.take(100)} | subtitles=${video.subtitles.size}",
+                    context = "PlayerTvFragment.displayVideo"
+                )
+
+                player.setMediaSource(ypMsFactory.createMediaSource(ypMediaItem))
             } else {
+                // === FLUJO ORIGINAL WLFMOVIE (OkHttpDataSource + DoH) ===
+                // Botón "Reproducir" normal — no se ve afectado por el toggle YP.
                 httpDataSource.setDefaultRequestProperties(
                     mapOf(
                         "User-Agent" to userAgent,
@@ -1311,6 +1355,20 @@ class PlayerTvFragment : Fragment() {
             player.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     super.onPlaybackStateChanged(playbackState)
+
+                    // WLFMOVIE YETI v7: log de cambio de estado para diagnóstico YP.
+                    val stateName = when (playbackState) {
+                        Player.STATE_IDLE -> "IDLE"
+                        Player.STATE_BUFFERING -> "BUFFERING"
+                        Player.STATE_READY -> "READY"
+                        Player.STATE_ENDED -> "ENDED"
+                        else -> "UNKNOWN($playbackState)"
+                    }
+                    CrashLogger.logError(
+                        tag = "YP-Player",
+                        message = "[TV] onPlaybackStateChanged → $stateName | isYpMode=${UserPreferences.yetiDirectPlayer} | pos=${player.currentPosition}ms | dur=${player.duration}ms | buffered=${player.bufferedPosition}ms",
+                        context = "Player.Listener"
+                    )
 
                     // WLFMOVIE: Actualizar spinner de buffering
                     wlfBufferingSpinner?.visibility = if (playbackState == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
@@ -1439,9 +1497,30 @@ class PlayerTvFragment : Fragment() {
                     super.onPlayerError(error)
                     Log.e("PlayerTvFragment", "onPlayerError: ", error)
 
+                    // WLFMOVIE YETI v7: log detallado del error para diagnóstico YP.
+                    CrashLogger.logError(
+                        tag = "YP-Player",
+                        message = "[TV] onPlayerError | errorCode=${error.errorCodeName} | isYpMode=${UserPreferences.yetiDirectPlayer} | source=${currentVideo?.source?.take(100)} | msg=${error.message?.take(200)}",
+                        throwable = error,
+                        context = "Player.Listener.onPlayerError"
+                    )
+                    error.cause?.let { c ->
+                        CrashLogger.logError(
+                            tag = "YP-Player",
+                            message = "[TV] onPlayerError CAUSE: ${c.javaClass.simpleName}: ${c.message?.take(200)}",
+                            throwable = c,
+                            context = "Player.Listener.onPlayerError.cause"
+                        )
+                    }
+
                     val nextServer = servers.getOrNull(servers.indexOf(currentServer) + 1)
                     if (nextServer != null) {
                         Log.i("PlayerTvFragment", "Playback failed, trying next server: ${nextServer.name}")
+                        CrashLogger.logError(
+                            tag = "YP-Player",
+                            message = "[TV] Saltando al siguiente server: ${nextServer.name}",
+                            context = "Player.Listener.onPlayerError"
+                        )
                         viewModel.getVideo(nextServer)
                     }
                 }
@@ -1482,6 +1561,13 @@ class PlayerTvFragment : Fragment() {
 
             player.prepare()
             player.playWhenReady = shouldPlay
+
+            // WLFMOVIE YETI v7: log final — el player está preparado.
+            CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[TV] player.prepare() + playWhenReady=$shouldPlay | isYpMode=${UserPreferences.yetiDirectPlayer} | source=${video.source.take(100)}",
+                context = "PlayerTvFragment.displayVideo"
+            )
         }
 
 
@@ -1800,6 +1886,30 @@ class PlayerTvFragment : Fragment() {
                 videoLoadedSuccessfully = false
                 navigateToDetailsFromErrorTv()
             }
+
+            // WLFMOVIE YETI v9: Botón "Intentar con Opción 2" / "Intentar normal" (TV).
+            val btnTryOther = errorLayout.findViewById<TextView>(R.id.btn_error_try_other)
+            if (btnTryOther != null && UserPreferences.yetiDirectPlayer) {
+                btnTryOther.visibility = View.VISIBLE
+                val wasYp = com.mew.wlfmovie.utils.YpDirectPlay.wasLastAttemptYp()
+                if (wasYp) {
+                    btnTryOther.text = "▶ Intentar normal"
+                    btnTryOther.setTextColor(resources.getColor(R.color.wlf_text_primary, null))
+                } else {
+                    btnTryOther.text = "🐢 Intentar Opción 2"
+                    btnTryOther.setTextColor(resources.getColor(R.color.wlf_fuchsia_neon, null))
+                }
+                btnTryOther.setOnClickListener {
+                    Log.i(TAG, "showErrorServersOverlayTv: intentando el contrario (wasYp=$wasYp)")
+                    errorLayout.visibility = View.GONE
+                    if (wasYp) {
+                        com.mew.wlfmovie.utils.YpDirectPlay.markNormalAttempt()
+                    } else {
+                        com.mew.wlfmovie.utils.YpDirectPlay.requestYp()
+                    }
+                    viewModel.getServers(args.videoType, args.id)
+                }
+            }
         }
 
         private fun navigateToDetailsFromErrorTv() {
@@ -1929,12 +2039,21 @@ class PlayerTvFragment : Fragment() {
             currentExtraBuffering = extraBuffering
             currentSoftwareDecoder = softwareDecoder
 
+            // WLFMOVIE YETI v8: el stack HTTP se decide en displayVideo(), no aquí.
+            // El botón "Reproducir" normal SIEMPRE usa OkHttpDataSource (stack original).
+            // El botón "Opción 2" (YP) construye un DefaultHttpDataSource.Factory
+            // fresco por video en displayVideo() (detecta server.name.startsWith("YP ")).
+            CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[TV] initializePlayer() → OkHttpDataSource.Factory (stack original — YP se gestiona en displayVideo por server name)",
+                context = "PlayerTvFragment.initializePlayer"
+            )
             var tokenLogged = false
             val okHttpClient = OkHttpClient.Builder()
                 .dns(Dns.SYSTEM)
                 .addInterceptor { chain ->
                     var request = chain.request()
-                    
+
                     if (currentVideo?.maintainToken == true) {
                         val latestQuery = TokenManager.latestQuery
                         if (latestQuery != null) {
@@ -1949,7 +2068,7 @@ class PlayerTvFragment : Fragment() {
                             android.util.Log.w("TokenManager", "[TV-INTERCEPTOR] maintainToken=true but latestQuery is null! URL: ${request.url.host}")
                         }
                     }
-                    
+
                     chain.proceed(request)
                 }
                 .build()
@@ -2156,6 +2275,15 @@ class PlayerTvFragment : Fragment() {
         val extraBuffering = PlayerSettingsView.Settings.ExtraBuffering.isEnabled
         currentExtraBuffering = extraBuffering
 
+        // WLFMOVIE YETI v8: en el camino post-bypass también dejamos el stack
+        // original (OkHttpDataSource). El botón "Reproducir" normal no se ve
+        // afectado por el toggle YP — la decisión se toma en displayVideo por
+        // server name.
+        CrashLogger.logError(
+            tag = "YP-Player",
+            message = "[TV post-bypass] Usando OkHttpDataSource (stack original)",
+            context = "PlayerTvFragment.onBypassCompleted"
+        )
         val okHttpClient = NetworkClient.systemDns
         httpDataSource = OkHttpDataSource.Factory(okHttpClient)
 

@@ -90,7 +90,13 @@ class SettingsMobileFragment : Fragment() {
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
-                .setNeutralButton(android.R.string.cancel, null)
+                // WLFMOVIE YETI v8: botón "Exportar" — guarda el log completo en
+                // /Download/wlfmovie-logs-<timestamp>.txt y lo comparte. Necesario
+                // porque los logs pueden pesar más de lo que soporta el portapapeles
+                // de Android (636 KB = 2320 líneas, clipboard lo trunca).
+                .setNeutralButton("Exportar") { _, _ ->
+                    exportLogsToFile(fullText)
+                }
                 .show()
             }
         }
@@ -117,19 +123,21 @@ class SettingsMobileFragment : Fragment() {
             showTermsDialog()
         }
 
-        // WLFMOVIE YETI: Toggle reproductor directo para YetiPelis.
-        // Boton definido en XML (btn_settings_yp_toggle) — confiable, no programatico.
+        // WLFMOVIE YETI: Toggle "Activar segundo reproductor" / Opción 2.
+        // Cuando está activo, aparecen dos botones en los detalles de película:
+        // "Reproducir normal" (player original con DoH) y "Reproducir con YP"
+        // (player con DefaultHttpDataSource = igual que la test app).
         binding.btnSettingsYpToggle.apply {
-            text = "Reproductor YetiPelis: ${if (UserPreferences.yetiDirectPlayer) "ACTIVADO" else "DESACTIVADO"}"
+            text = "Segundo reproductor (Opción 2): ${if (UserPreferences.yetiDirectPlayer) "ACTIVADO" else "DESACTIVADO"}"
             setOnClickListener {
                 UserPreferences.yetiDirectPlayer = !UserPreferences.yetiDirectPlayer
-                text = "Reproductor YetiPelis: ${if (UserPreferences.yetiDirectPlayer) "ACTIVADO" else "DESACTIVADO"}"
+                text = "Segundo reproductor (Opción 2): ${if (UserPreferences.yetiDirectPlayer) "ACTIVADO" else "DESACTIVADO"}"
                 Toast.makeText(
                     requireContext(),
                     if (UserPreferences.yetiDirectPlayer)
-                        "Reproductor directo activado para YP"
+                        "Segundo reproductor activado (Opción 2)"
                     else
-                        "Reproductor directo desactivado",
+                        "Segundo reproductor desactivado",
                     Toast.LENGTH_SHORT,
                 ).show()
             }
@@ -360,5 +368,86 @@ Nos reservamos el derecho de actualizar estos términos en cualquier momento.
 
 10. CONTACTO
 Para consultas sobre estos términos, contacta a través del repositorio de GitHub."""
+    }
+
+    /**
+     * WLFMOVIE YETI v8: Exporta los logs completos a un archivo .txt y lo
+     * comparte con otra app (Gmail, Telegram, etc.).
+     *
+     * Necesario porque el portapapeles de Android trunca los textos muy
+     * largos (636 KB = 2320 líneas no caben). Con un archivo compartido no
+     * hay límite.
+     *
+     * - Android 10+ (API 29+): MediaStore — no requiere permisos. El archivo
+     *   se guarda en Downloads/WlfMovie/ (público, accesible desde el explorador).
+     * - Android < 10: storage privado de la app + FileProvider para compartir.
+     *   No requiere permisos (es storage interno). El usuario no puede ver el
+     *   archivo directamente, pero puede compartirlo vía el intent chooser.
+     */
+    private fun exportLogsToFile(logText: String) {
+        try {
+            val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
+                .format(java.util.Date())
+            val fileName = "wlfmovie-logs-$timestamp.txt"
+
+            val context = requireContext()
+            val uri: android.net.Uri
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                // Android 10+ — MediaStore, no permisos necesarios.
+                val values = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
+                        android.os.Environment.DIRECTORY_DOWNLOADS + "/WlfMovie")
+                }
+                val collection = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                val u = context.contentResolver.insert(collection, values)
+                if (u == null) {
+                    Toast.makeText(context, "No se pudo crear el archivo", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                context.contentResolver.openOutputStream(u)?.use { out ->
+                    out.write(logText.toByteArray())
+                }
+                uri = u
+            } else {
+                // Android < 10 — storage privado de la app (no requiere permisos).
+                // Se comparte vía FileProvider (ya configurado en AndroidManifest.xml).
+                val dir = java.io.File(
+                    context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS),
+                    "WlfMovie"
+                ).apply { mkdirs() }
+                val file = java.io.File(dir, fileName)
+                file.writeText(logText)
+                uri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.provider",
+                    file
+                )
+            }
+
+            // Compartir el archivo con cualquier app
+            val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(android.content.Intent.EXTRA_SUBJECT, "WlfMovie logs $timestamp")
+                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(android.content.Intent.createChooser(shareIntent, "Compartir logs"))
+
+            Toast.makeText(
+                context,
+                "Logs exportados: $fileName",
+                Toast.LENGTH_LONG
+            ).show()
+        } catch (e: Exception) {
+            android.util.Log.e("WlfMovie-Settings", "Error exportando logs", e)
+            Toast.makeText(
+                requireContext(),
+                "Error exportando: ${e.message?.take(100)}",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 }

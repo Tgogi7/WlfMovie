@@ -200,6 +200,30 @@
             android:textSize="20sp"
             android:textStyle="bold" />
 
+        <!-- WLFMOVIE YETI v8: Botón "Opción 2" (YP) para series en TV.
+             Usa el mismo episodio actual (episodeToWatch) que el botón "Ver T1 E1".
+             Visible solo si el toggle "Segundo reproductor" está ON. -->
+        <TextView
+            android:id="@+id/btn_tv_show_yp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/wlf_bg_secondary_button_details"
+            android:clickable="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:gravity="center"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:text="🐢 YP"
+            android:textColor="@color/wlf_fuchsia_neon"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
         <!-- Botón Ver temporadas -->
         <TextView
             android:id="@+id/btn_tv_show_seasons"

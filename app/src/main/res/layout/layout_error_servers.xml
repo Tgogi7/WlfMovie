@@ -97,4 +97,27 @@
 
     </LinearLayout>
 
+    <!-- WLFMOVIE YETI v9: Botón "Intentar con Opción 2" / "Intentar normal".
+         Visible solo si el toggle "Segundo reproductor" está ON.
+         Si el intento actual fue normal → muestra "Intentar con 🐢 Opción 2"
+         Si el intento actual fue YP → muestra "Intentar normal" -->
+    <TextView
+        android:id="@+id/btn_error_try_other"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/wlf_bg_secondary_button_details"
+        android:clickable="true"
+        android:focusable="true"
+        android:paddingStart="24dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="14dp"
+        android:text="🐢 Intentar Opción 2"
+        android:textColor="@color/wlf_fuchsia_neon"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
 </LinearLayout>

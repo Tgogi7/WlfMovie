@@ -1113,24 +1113,84 @@ class PlayerMobileFragment : Fragment() {
             )
             .build()
 
-        // WLFMOVIE YETI: Reproductor directo para YetiPelis (igual que test app)
-        // Cuando el toggle esta ON y el video es de YP, usa DefaultHttpDataSource
-        // (HttpURLConnection + system DNS + setAllowCrossProtocolRedirects) en vez
-        // de OkHttpDataSource. Mismo stack que la test app = mismo rendimiento.
-        val isYetiVideo = server.name.startsWith("YP ") ||
-            video.source.contains("moviemaster.lat") ||
-            video.source.contains("fastream.to")
+        // WLFMOVIE YETI v8: ¿Es este video parte de una reproducción YP?
+        //
+        // El botón "Reproducir" normal (sin YP) usa OkHttpDataSource + DoH (stack
+        // original) — mismo comportamiento que siempre. NO debe verse afectado
+        // por el toggle "Segundo reproductor".
+        //
+        // El botón "Opción 2" (YP) setea el flag YpDirectPlay.requestYp() y el
+        // PlayerViewModel.consumeYpRequest() lo consume en getServers(). Pero
+        // para que displayVideo() sepa que debe usar DefaultHttpDataSource,
+        // necesitamos OTRO flag que viva más allá de getServers() — porque
+        // consumeYpRequest() es one-shot y se borra.
+        //
+        // Solución: YpDirectPlay ya no es solo un flag — también guarda el
+        // último request YP en un flag "isCurrentlyYp" que se setea cuando el
+        // VM detecta consumeYpRequest()=true y se limpia cuando se sale del
+        // reproductor. El player lee ese flag para decidir el stack HTTP.
+        //
+        // Pero más simple: dado que el PlayerViewModel YA ha llamado al
+        // provider (YP o normal) y los servers ya llegaron, podemos detectar YP
+        // mirando si el nombre del server empieza con "YP " — que es como
+        // YetiPelisProvider nombra los servers. Eso es 100% confiable.
+        val isYpServer = server.name.startsWith("YP ")
 
-        if (isYetiVideo && UserPreferences.yetiDirectPlayer) {
+        CrashLogger.logError(
+            tag = "YP-Player",
+            message = "[MOBILE] displayVideo() llamado | isYpServer=$isYpServer | isYpToggle=${UserPreferences.yetiDirectPlayer} | server=${server.name} | source=${video.source.take(120)} | mimeType=${video.type} | hasHeaders=${video.headers != null}",
+            context = "PlayerMobileFragment.displayVideo"
+        )
+
+        if (isYpServer && UserPreferences.yetiDirectPlayer) {
+            // === FLUJO TEST APP (segundo reproductor) ===
             val headers = video.headers ?: emptyMap()
-            val dsFactory = DefaultHttpDataSource.Factory()
-                .setUserAgent(headers["User-Agent"] ?: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+            val uaHeader = headers["User-Agent"]
+                ?: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+            CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[MOBILE] Creando DefaultHttpDataSource.Factory fresco | UA=${uaHeader.take(60)} | headers=${headers.keys} | allowCrossProtocolRedirects=true",
+                context = "PlayerMobileFragment.displayVideo"
+            )
+
+            val ypDsFactory = DefaultHttpDataSource.Factory()
+                .setUserAgent(uaHeader)
                 .setDefaultRequestProperties(headers)
                 .setAllowCrossProtocolRedirects(true)
-            val msFactory = DefaultMediaSourceFactory(requireContext())
-                .setDataSourceFactory(dsFactory)
-            player.setMediaSource(msFactory.createMediaSource(mediaItem))
+                .setConnectTimeoutMs(8_000)
+                .setReadTimeoutMs(8_000)
+
+            val ypMsFactory = DefaultMediaSourceFactory(requireContext())
+                .setDataSourceFactory(ypDsFactory)
+
+            // MediaItem SIN setMimeType (igual que test app) — ExoPlayer detecta por .m3u8
+            val ypMediaItem = MediaItem.Builder()
+                .setUri(video.source.toUri())
+                .setSubtitleConfigurations(video.subtitles.map { subtitle ->
+                    MediaItem.SubtitleConfiguration.Builder(subtitle.file.toUri())
+                        .setMimeType(subtitle.file.toSubtitleMimeType())
+                        .setLabel(subtitle.label)
+                        .setSelectionFlags(if (subtitle.default) C.SELECTION_FLAG_DEFAULT else 0)
+                        .build()
+                })
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setMediaServerId(server.id)
+                        .build()
+                )
+                .build()
+
+            CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[MOBILE] setMediaSource (test app style) | uri=${video.source.take(100)} | subtitles=${video.subtitles.size}",
+                context = "PlayerMobileFragment.displayVideo"
+            )
+
+            player.setMediaSource(ypMsFactory.createMediaSource(ypMediaItem))
         } else {
+            // === FLUJO ORIGINAL WLFMOVIE (OkHttpDataSource + DoH) ===
+            // Botón "Reproducir" normal — no se ve afectado por el toggle YP.
             httpDataSource.setDefaultRequestProperties(
                 mapOf(
                     "User-Agent" to userAgent,
@@ -1145,6 +1205,20 @@ class PlayerMobileFragment : Fragment() {
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 super.onPlaybackStateChanged(state)
+                // WLFMOVIE YETI v7: log de cambio de estado para diagnóstico YP.
+                // state: 1=IDLE, 2=BUFFERING, 3=READY, 4=ENDED
+                val stateName = when (state) {
+                    Player.STATE_IDLE -> "IDLE"
+                    Player.STATE_BUFFERING -> "BUFFERING"
+                    Player.STATE_READY -> "READY"
+                    Player.STATE_ENDED -> "ENDED"
+                    else -> "UNKNOWN($state)"
+                }
+                CrashLogger.logError(
+                    tag = "YP-Player",
+                    message = "[MOBILE] onPlaybackStateChanged → $stateName | isYpMode=${UserPreferences.yetiDirectPlayer} | pos=${player.currentPosition}ms | dur=${player.duration}ms | buffered=${player.bufferedPosition}ms",
+                    context = "Player.Listener"
+                )
                 // WLFMOVIE: Mostrar/ocultar spinner de buffering personalizado
                 updateBufferingState(state == Player.STATE_BUFFERING)
                 // WLFMOVIE V6.4.7: watchdog de arranque offline. Solo cuenta
@@ -1268,6 +1342,25 @@ class PlayerMobileFragment : Fragment() {
                 Log.e("PlayerMobileFragment", "onPlayerError: ", error)
                 cancelOfflineStallCheck()
 
+                // WLFMOVIE YETI v7: log detallado del error para diagnóstico YP.
+                // Este es EL log más importante — si el player falla, aquí aparece
+                // el errorCode, el mensaje, la cause, etc.
+                CrashLogger.logError(
+                    tag = "YP-Player",
+                    message = "[MOBILE] onPlayerError | errorCode=${error.errorCodeName} | isYpMode=${UserPreferences.yetiDirectPlayer} | source=${currentVideo?.source?.take(100)} | msg=${error.message?.take(200)}",
+                    throwable = error,
+                    context = "Player.Listener.onPlayerError"
+                )
+                // Log de la causa raíz (si hay)
+                error.cause?.let { c ->
+                    CrashLogger.logError(
+                        tag = "YP-Player",
+                        message = "[MOBILE] onPlayerError CAUSE: ${c.javaClass.simpleName}: ${c.message?.take(200)}",
+                        throwable = c,
+                        context = "Player.Listener.onPlayerError.cause"
+                    )
+                }
+
                 // WLFMOVIE V6.4.7: en offline no hay "siguiente server" al
                 // que caer — el fallo se registra para diagnóstico (antes
                 // quedaba completamente invisible).
@@ -1288,6 +1381,11 @@ class PlayerMobileFragment : Fragment() {
                 val nextServer = servers.getOrNull(servers.indexOf(currentServer) + 1)
                 if (nextServer != null) {
                     Log.i("PlayerMobileFragment", "Playback failed, trying next server: ${nextServer.name}")
+                    CrashLogger.logError(
+                        tag = "YP-Player",
+                        message = "[MOBILE] Saltando al siguiente server: ${nextServer.name}",
+                        context = "Player.Listener.onPlayerError"
+                    )
                     viewModel.getVideo(nextServer)
                 }
             }
@@ -1355,6 +1453,15 @@ class PlayerMobileFragment : Fragment() {
 
         player.prepare()
         player.play()
+
+        // WLFMOVIE YETI v7: log final — el player está preparado y reproduciendo.
+        // Si no llega a STATE_READY después de esto, los logs de onPlaybackStateChanged
+        // nos dirán si se quedó en BUFFERING o si hubo error.
+        CrashLogger.logError(
+            tag = "YP-Player",
+            message = "[MOBILE] player.prepare() + player.play() llamados | isYpMode=${UserPreferences.yetiDirectPlayer} | source=${video.source.take(100)}",
+            context = "PlayerMobileFragment.displayVideo"
+        )
     }
 
     private fun enterPIPMode() {
@@ -1717,6 +1824,36 @@ class PlayerMobileFragment : Fragment() {
             videoLoadedSuccessfully = false
             // Navegar a detalles
             navigateToDetailsFromError()
+        }
+
+        // WLFMOVIE YETI v9: Botón "Intentar con Opción 2" / "Intentar normal".
+        // Visible solo si el toggle "Segundo reproductor" está ON.
+        val btnTryOther = errorLayout.findViewById<TextView>(R.id.btn_error_try_other)
+        if (btnTryOther != null && UserPreferences.yetiDirectPlayer) {
+            btnTryOther.visibility = View.VISIBLE
+            // Si el último intento fue YP → mostrar "Intentar normal"
+            // Si el último intento fue normal → mostrar "Intentar con 🐢 Opción 2"
+            val wasYp = com.mew.wlfmovie.utils.YpDirectPlay.wasLastAttemptYp()
+            if (wasYp) {
+                btnTryOther.text = "▶ Intentar normal"
+                btnTryOther.setTextColor(resources.getColor(R.color.wlf_text_primary, null))
+            } else {
+                btnTryOther.text = "🐢 Intentar Opción 2"
+                btnTryOther.setTextColor(resources.getColor(R.color.wlf_fuchsia_neon, null))
+            }
+            btnTryOther.setOnClickListener {
+                Log.i(TAG, "showErrorServersOverlay: intentando el contrario (wasYp=$wasYp)")
+                errorLayout.visibility = View.GONE
+                if (wasYp) {
+                    // Estaba en YP, cambiar a normal
+                    com.mew.wlfmovie.utils.YpDirectPlay.markNormalAttempt()
+                } else {
+                    // Estaba en normal, cambiar a YP
+                    com.mew.wlfmovie.utils.YpDirectPlay.requestYp()
+                }
+                // Reintentar búsqueda de servers con el nuevo modo
+                viewModel.getServers(args.videoType, args.id)
+            }
         }
     }
 
@@ -2428,11 +2565,28 @@ class PlayerMobileFragment : Fragment() {
         currentExtraBuffering = extraBuffering
         currentSoftwareDecoder = softwareDecoder
 
+        // WLFMOVIE YETI v8: el stack HTTP se decide en displayVideo(), no aquí.
+        //
+        // El botón "Reproducir" normal SIEMPRE usa OkHttpDataSource + DoH (stack
+        // original) — no se ve afectado por el toggle "Segundo reproductor".
+        //
+        // El botón "Opción 2" (YP) hace que YetiPelisProvider devuelva servers con
+        // nombre que empieza con "YP ". displayVideo() detecta eso y construye un
+        // DefaultHttpDataSource.Factory() fresco para ese video (igual que la
+        // test app). Ese factory se pasa al MediaSourceFactory específico del
+        // mediaItem — no toca el dataSourceFactory global.
+        //
+        // Así el botón "Reproducir" normal queda 100% intacto.
+        CrashLogger.logError(
+            tag = "YP-Player",
+            message = "[MOBILE] initializePlayer() → OkHttpDataSource.Factory (stack original — YP se gestiona en displayVideo por server name)",
+            context = "PlayerMobileFragment.initializePlayer"
+        )
         var tokenLogged = false
-        val okHttpClient = NetworkClient.systemDns.newBuilder()
+        val okHttpClient = NetworkClient.default.newBuilder()
             .addInterceptor { chain ->
                 var request = chain.request()
-                
+
                 if (currentVideo?.maintainToken == true) {
                     val latestQuery = TokenManager.latestQuery
                     if (latestQuery != null) {
@@ -2447,7 +2601,7 @@ class PlayerMobileFragment : Fragment() {
                         android.util.Log.w("TokenManager", "[MOBILE-INTERCEPTOR] maintainToken=true but latestQuery is null! URL: ${request.url.host}")
                     }
                 }
-                
+
                 chain.proceed(request)
             }
             .build()

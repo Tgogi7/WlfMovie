@@ -59,6 +59,15 @@ class YetiExtractor : Extractor() {
         Log.i("YetiExtractor", "Devolviendo m3u8 directo con headers")
         Log.i("YetiExtractor", "URL: ${link.take(120)}...")
 
+        // WLFMOVIE YETI v7: log al CrashLogger para que se vea en Ajustes → Errores.
+        try {
+            com.mew.wlfmovie.utils.CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[YetiExtractor] extract() llamado | link=${link.take(150)}",
+                context = "YetiExtractor.extract"
+            )
+        } catch (_: Exception) {}
+
         // Limpiar la URL: a veces viene con ?r=1 o parámetros extras
         val cleanUrl = link.substringBefore("&r=1").trim()
 
@@ -69,6 +78,14 @@ class YetiExtractor : Extractor() {
             "Referer" to MM_BASE + "/",
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         )
+
+        try {
+            com.mew.wlfmovie.utils.CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[YetiExtractor] devolviendo Video | source=${cleanUrl.take(150)} | headers=${headers.keys} | type=application/vnd.apple.mpegurl",
+                context = "YetiExtractor.extract"
+            )
+        } catch (_: Exception) {}
 
         // MIME type correcto para HLS — ExoPlayer necesita "application/vnd.apple.mpegurl"
         // para usar HlsMediaSource. Si pasamos null, ExoPlayer auto-detecta desde .m3u8.

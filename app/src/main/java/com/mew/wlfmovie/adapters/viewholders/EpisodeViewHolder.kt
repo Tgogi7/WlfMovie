@@ -53,54 +53,45 @@ class EpisodeViewHolder(
     private fun displayMobileItem(binding: ItemEpisodeMobileBinding) {
         binding.root.apply {
             setOnClickListener {
-                findNavController().navigate(
-                    SeasonMobileFragmentDirections.actionSeasonToPlayer(
-                        id = episode.id,
-                        title = episode.tvShow?.title ?: "",
-                        subtitle = episode.season?.takeIf { it.number != 0 }?.let { season ->
-                            context.getString(
-                                R.string.player_subtitle_tv_show,
-                                season.number,
-                                episode.number,
-                                episode.title ?: context.getString(
-                                    R.string.episode_number,
-                                    episode.number
-                                )
-                            )
-                        } ?: context.getString(
-                            R.string.player_subtitle_tv_show_episode_only,
-                            episode.number,
-                            episode.title ?: context.getString(
-                                R.string.episode_number,
-                                episode.number
-                            )
-                        ),
-                        videoType = Video.Type.Episode(
-                            id = episode.id,
-                            number = episode.number,
-                            title = episode.title,
-                            poster = episode.poster,
-                            overview = episode.overview,
-                            tvShow = Video.Type.Episode.TvShow(
-                                id = episode.tvShow?.id ?: "",
-                                title = episode.tvShow?.title ?: "",
-                                poster = episode.tvShow?.poster,
-                                banner = episode.tvShow?.banner,
-                                releaseDate = episode.tvShow?.released?.format("yyyy-MM-dd"),
-                                imdbId = episode.tvShow?.imdbId,
-                            ),
-                            season = Video.Type.Episode.Season(
-                                number = episode.season?.number ?: 0,
-                                title = episode.season?.title,
-                            ),
-                        ),
-                    )
-                )
+                // WLFMOVIE YETI v9: Si el toggle "Segundo reproductor" está ON,
+                // preguntar al usuario qué método quiere usar antes de llevarlo al player.
+                if (com.mew.wlfmovie.utils.UserPreferences.yetiDirectPlayer) {
+                    showMethodChooserDialog(isTv = false)
+                } else {
+                    navigateToPlayer(isTv = false, useYp = false)
+                }
             }
             setOnLongClickListener {
                 ShowOptionsMobileDialog(context, episode)
                     .show()
                 true
+            }
+        }
+
+        // WLFMOVIE YETI v8: Botón "Opción 2" en episodio (mobile).
+        // Visible solo si el toggle "Segundo reproductor" está ON.
+        // Al tocarlo, setea YpDirectPlay.requestYp() y navega al PlayerFragment
+        // igual que el click normal del row — el usuario ve el spinner del
+        // reproductor mientras YetiPelisProvider busca los servers.
+        binding.btnEpisodeYp.apply {
+            visibility = if (com.mew.wlfmovie.utils.UserPreferences.yetiDirectPlayer) View.VISIBLE else View.GONE
+            setOnClickListener {
+                try {
+                    com.mew.wlfmovie.utils.CrashLogger.logError(
+                        tag = "YP-Player",
+                        message = "[EpisodeHolder Mobile] Botón Opción 2 presionado | episode=${episode.number} | tvShow=${episode.tvShow?.title}",
+                        context = "EpisodeViewHolder.playWithYeti"
+                    )
+                } catch (_: Exception) {}
+                com.mew.wlfmovie.utils.YpDirectPlay.requestYp()
+                findNavController().navigate(
+                    SeasonMobileFragmentDirections.actionSeasonToPlayer(
+                        id = episode.id,
+                        title = episode.tvShow?.title ?: "",
+                        subtitle = buildSubtitle(),
+                        videoType = buildVideoType(),
+                    )
+                )
             }
         }
 
@@ -152,49 +143,12 @@ class EpisodeViewHolder(
     private fun displayTvItem(binding: ItemEpisodeTvBinding) {
         binding.root.apply {
             setOnClickListener {
-                findNavController().navigate(
-                    SeasonTvFragmentDirections.actionSeasonToPlayer(
-                        id = episode.id,
-                        title = episode.tvShow?.title ?: "",
-                        subtitle = episode.season?.takeIf { it.number != 0 }?.let { season ->
-                            context.getString(
-                                R.string.player_subtitle_tv_show,
-                                season.number,
-                                episode.number,
-                                episode.title ?: context.getString(
-                                    R.string.episode_number,
-                                    episode.number
-                                )
-                            )
-                        } ?: context.getString(
-                            R.string.player_subtitle_tv_show_episode_only,
-                            episode.number,
-                            episode.title ?: context.getString(
-                                R.string.episode_number,
-                                episode.number
-                            )
-                        ),
-                        videoType = Video.Type.Episode(
-                            id = episode.id,
-                            number = episode.number,
-                            title = episode.title,
-                            poster = episode.poster,
-                            overview = episode.overview,
-                            tvShow = Video.Type.Episode.TvShow(
-                                id = episode.tvShow?.id ?: "",
-                                title = episode.tvShow?.title ?: "",
-                                poster = episode.tvShow?.poster,
-                                banner = episode.tvShow?.banner,
-                                releaseDate = episode.tvShow?.released?.format("yyyy-MM-dd"),
-                                imdbId = episode.tvShow?.imdbId,
-                            ),
-                            season = Video.Type.Episode.Season(
-                                number = episode.season?.number ?: 0,
-                                title = episode.season?.title,
-                            ),
-                        ),
-                    )
-                )
+                // WLFMOVIE YETI v9: Si el toggle está ON, preguntar método.
+                if (com.mew.wlfmovie.utils.UserPreferences.yetiDirectPlayer) {
+                    showMethodChooserDialog(isTv = true)
+                } else {
+                    navigateToPlayer(isTv = true, useYp = false)
+                }
             }
             setOnLongClickListener {
                 ShowOptionsTvDialog(context, episode)
@@ -208,6 +162,30 @@ class EpisodeViewHolder(
                 }
                 binding.root.startAnimation(animation)
                 animation.fillAfter = true
+            }
+        }
+
+        // WLFMOVIE YETI v8: Botón "Opción 2" en episodio (TV).
+        // Mismo comportamiento que en mobile.
+        binding.btnEpisodeYp.apply {
+            visibility = if (com.mew.wlfmovie.utils.UserPreferences.yetiDirectPlayer) View.VISIBLE else View.GONE
+            setOnClickListener {
+                try {
+                    com.mew.wlfmovie.utils.CrashLogger.logError(
+                        tag = "YP-Player",
+                        message = "[EpisodeHolder TV] Botón Opción 2 presionado | episode=${episode.number} | tvShow=${episode.tvShow?.title}",
+                        context = "EpisodeViewHolder.playWithYeti"
+                    )
+                } catch (_: Exception) {}
+                com.mew.wlfmovie.utils.YpDirectPlay.requestYp()
+                findNavController().navigate(
+                    SeasonTvFragmentDirections.actionSeasonToPlayer(
+                        id = episode.id,
+                        title = episode.tvShow?.title ?: "",
+                        subtitle = buildSubtitle(),
+                        videoType = buildVideoType(),
+                    )
+                )
             }
         }
 
@@ -260,6 +238,12 @@ class EpisodeViewHolder(
     private fun displayContinueWatchingMobileItem(binding: ItemEpisodeContinueWatchingMobileBinding) {
         binding.root.apply {
             setOnClickListener {
+                // WLFMOVIE YETI v9: Si este episodio se reprodujo con YP la última vez
+                // y el toggle está ON, usar YP automáticamente.
+                if (com.mew.wlfmovie.utils.UserPreferences.yetiDirectPlayer &&
+                    com.mew.wlfmovie.utils.YpDirectPlay.wasLastModeYpForVideo(episode.id)) {
+                    com.mew.wlfmovie.utils.YpDirectPlay.requestYp()
+                }
                 findNavController().navigate(
                     HomeMobileFragmentDirections.actionHomeToTvShow(
                         id = episode.tvShow?.id ?: "",
@@ -360,6 +344,12 @@ class EpisodeViewHolder(
     private fun displayContinueWatchingTvItem(binding: ItemEpisodeContinueWatchingTvBinding) {
         binding.root.apply {
             setOnClickListener {
+                // WLFMOVIE YETI v9: Si este episodio se reprodujo con YP la última vez
+                // y el toggle está ON, usar YP automáticamente.
+                if (com.mew.wlfmovie.utils.UserPreferences.yetiDirectPlayer &&
+                    com.mew.wlfmovie.utils.YpDirectPlay.wasLastModeYpForVideo(episode.id)) {
+                    com.mew.wlfmovie.utils.YpDirectPlay.requestYp()
+                }
                 findNavController().navigate(
                     HomeTvFragmentDirections.actionHomeToTvShow(
                         id = episode.tvShow?.id ?: "",
@@ -500,5 +490,103 @@ class EpisodeViewHolder(
             centerCrop()
             transition(DrawableTransitionOptions.withCrossFade())
         }
+    }
+
+    // WLFMOVIE YETI v8: Helpers para construir el videoType y el subtitle del
+    // episodio sin duplicar el código en cada click listener (mobile y TV).
+    // Esto se usa tanto para el click normal del row como para el botón YP.
+
+    private fun buildSubtitle(): String {
+        return episode.season?.takeIf { it.number != 0 }?.let { season ->
+            context.getString(
+                R.string.player_subtitle_tv_show,
+                season.number,
+                episode.number,
+                episode.title ?: context.getString(
+                    R.string.episode_number,
+                    episode.number
+                )
+            )
+        } ?: context.getString(
+            R.string.player_subtitle_tv_show_episode_only,
+            episode.number,
+            episode.title ?: context.getString(
+                R.string.episode_number,
+                episode.number
+            )
+        )
+    }
+
+    private fun buildVideoType(): Video.Type.Episode {
+        return Video.Type.Episode(
+            id = episode.id,
+            number = episode.number,
+            title = episode.title,
+            poster = episode.poster,
+            overview = episode.overview,
+            tvShow = Video.Type.Episode.TvShow(
+                id = episode.tvShow?.id ?: "",
+                title = episode.tvShow?.title ?: "",
+                poster = episode.tvShow?.poster,
+                banner = episode.tvShow?.banner,
+                releaseDate = episode.tvShow?.released?.format("yyyy-MM-dd"),
+                imdbId = episode.tvShow?.imdbId,
+            ),
+            season = Video.Type.Episode.Season(
+                number = episode.season?.number ?: 0,
+                title = episode.season?.title,
+            ),
+        )
+    }
+
+    // WLFMOVIE YETI v9: Navega al player con el modo elegido (normal o YP).
+    private fun navigateToPlayer(isTv: Boolean, useYp: Boolean) {
+        if (useYp) {
+            com.mew.wlfmovie.utils.YpDirectPlay.requestYp()
+            try {
+                com.mew.wlfmovie.utils.CrashLogger.logError(
+                    tag = "YP-Player",
+                    message = "[EpisodeHolder] Navegando al player con Opción 2 | S${episode.season?.number}E${episode.number}",
+                    context = "EpisodeViewHolder.navigateToPlayer"
+                )
+            } catch (_: Exception) {}
+        }
+        val navController = itemView.findNavController()
+        if (isTv) {
+            navController.navigate(
+                SeasonTvFragmentDirections.actionSeasonToPlayer(
+                    id = episode.id,
+                    title = episode.tvShow?.title ?: "",
+                    subtitle = buildSubtitle(),
+                    videoType = buildVideoType(),
+                )
+            )
+        } else {
+            navController.navigate(
+                SeasonMobileFragmentDirections.actionSeasonToPlayer(
+                    id = episode.id,
+                    title = episode.tvShow?.title ?: "",
+                    subtitle = buildSubtitle(),
+                    videoType = buildVideoType(),
+                )
+            )
+        }
+    }
+
+    // WLFMOVIE YETI v9: Diálogo que pregunta al usuario qué método usar
+    // (normal o Opción 2) cuando entra a un episodio desde el selector de temporada.
+    // Solo se muestra si el toggle "Segundo reproductor" está ON.
+    private fun showMethodChooserDialog(isTv: Boolean) {
+        val options = arrayOf("▶ Reproducir normal", "🐢 Opción 2")
+        android.app.AlertDialog.Builder(context)
+            .setTitle("Método de reproducción")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> navigateToPlayer(isTv, useYp = false)
+                    1 -> navigateToPlayer(isTv, useYp = true)
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 }

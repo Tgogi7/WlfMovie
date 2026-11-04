@@ -168,7 +168,7 @@
                 android:textColor="@color/wlf_fuchsia_neon"
                 android:textSize="15sp" />
 
-            <!-- WLFMOVIE YETI: Toggle reproductor directo para YetiPelis -->
+            <!-- WLFMOVIE YETI: Toggle "Activar segundo reproductor" / Opción 2 -->
             <TextView
                 android:id="@+id/btn_settings_yp_toggle"
                 android:layout_width="wrap_content"
@@ -181,7 +181,7 @@
                 android:paddingTop="12dp"
                 android:paddingEnd="24dp"
                 android:paddingBottom="12dp"
-                android:text="Reproductor YetiPelis: DESACTIVADO"
+                android:text="Segundo reproductor (Opción 2): DESACTIVADO"
                 android:textColor="@color/wlf_text_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />

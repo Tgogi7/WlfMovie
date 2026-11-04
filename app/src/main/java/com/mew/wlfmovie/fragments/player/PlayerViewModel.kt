@@ -10,6 +10,8 @@ import com.mew.wlfmovie.StreamFlixApp
 import com.mew.wlfmovie.database.AppDatabase
 import com.mew.wlfmovie.models.Video
 import com.mew.wlfmovie.providers.TmdbProvider
+import com.mew.wlfmovie.providers.YetiPelisProvider
+import com.mew.wlfmovie.utils.CrashLogger
 import com.mew.wlfmovie.utils.CustomTabHelper
 import com.mew.wlfmovie.utils.EpisodeManager
 import com.mew.wlfmovie.utils.OpenSubtitles
@@ -179,6 +181,11 @@ class PlayerViewModel(
 
     fun getServers(videoType: Video.Type, id: String) = viewModelScope.launch(Dispatchers.IO) {
         Log.d("PlayerViewModel", "Inizio ricerca server per ID: $id")
+        CrashLogger.logError(
+            tag = "YP-Player",
+            message = "[VM] getServers() llamado | id=$id | isYpMode=${UserPreferences.yetiDirectPlayer}",
+            context = "PlayerViewModel.getServers"
+        )
         lastVideoType = videoType
         lastId = id
         _state.emit(State.LoadingServers)
@@ -187,19 +194,124 @@ class PlayerViewModel(
         // Video de file:// directamente sin llamar al provider. El progreso de
         // reproduccion se guardara solo en `downloads.watchPositionMillis`.
         if (tryEmitOfflineVideo(videoType, id)) {
+            CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[VM] offline video emitido (pelicula descargada)",
+                context = "PlayerViewModel.getServers"
+            )
             return@launch
         }
 
-        // WLFMOVIE YETI: Si hay servers YP pendientes (botón "Reproducir con YP"
-        // en la pagina de detalles), emitirlos directamente sin llamar al provider.
-        // El player auto-seleccionara el primero y lo reproducira con
-        // DefaultHttpDataSource (porque yetiDirectPlayer esta ON y el server es YP).
-        val ypServers = YpDirectPlay.consumePendingServers()
-        if (ypServers != null && ypServers.isNotEmpty()) {
-            Log.i("WlfMovie", "[PlayerVM] YP direct play: ${ypServers.size} servers pre-resueltos")
-            _state.emit(State.SuccessLoadingServers(ypServers))
+        // WLFMOVIE YETI v8: Si el flag YP está activo (botón "Opción 2" en
+        // detalles de película), usar YetiPelisProvider en vez del provider
+        // actual. Esto se setea en MovieViewHolder.playWithYeti() /
+        // EpisodeViewHolder.playWithYeti(). El flag se limpia después (one-shot).
+        //
+        // Flujo: el botón YP navega inmediatamente al reproductor (sin esperar
+        // a searchServers), el usuario ve el spinner morado-fucsia del
+        // reproductor mientras YetiPelisProvider busca los servers — mismo UX
+        // que el botón "Reproducir" normal.
+        val useYp = YpDirectPlay.consumeYpRequest()
+        if (useYp) {
+            // WLFMOVIE YETI v9: Guardar que este video se reprodujo con YP.
+            YpDirectPlay.saveModeForVideo(id, true)
+            CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[VM] Flag YP activo — llamando a YetiPelisProvider.searchServers() en vez del provider normal",
+                context = "PlayerViewModel.getServers"
+            )
+            try {
+                // Extraer info del videoType (Movie o Episode) para pasarle al provider.
+                // Estructura: title, isMovie, seasonNum, episodeNum, expectTmdbId
+                val title: String
+                val isMovie: Boolean
+                val seasonNum: Int?
+                val episodeNum: Int?
+                val expectTmdbId: Int?
+
+                when (val vt = videoType) {
+                    is Video.Type.Movie -> {
+                        CrashLogger.logError(
+                            tag = "YP-Player",
+                            message = "[VM] YP para película | title=${vt.title} | tmdb=${vt.id}",
+                            context = "PlayerViewModel.getServers"
+                        )
+                        title = vt.title
+                        isMovie = true
+                        seasonNum = null
+                        episodeNum = null
+                        expectTmdbId = vt.id.toIntOrNull()
+                    }
+                    is Video.Type.Episode -> {
+                        CrashLogger.logError(
+                            tag = "YP-Player",
+                            message = "[VM] YP para episodio | tvShow=${vt.tvShow.title} | S${vt.season.number}E${vt.number} | tmdb=${vt.tvShow.id}",
+                            context = "PlayerViewModel.getServers"
+                        )
+                        title = vt.tvShow.title
+                        isMovie = false
+                        seasonNum = vt.season.number
+                        episodeNum = vt.number
+                        expectTmdbId = vt.tvShow.id.toIntOrNull()
+                    }
+                }
+
+                val servers = YetiPelisProvider.searchServers(
+                    title = title,
+                    isMovie = isMovie,
+                    seasonNum = seasonNum,
+                    episodeNum = episodeNum,
+                    expectTmdbId = expectTmdbId,
+                )
+
+                CrashLogger.logError(
+                    tag = "YP-Player",
+                    message = "[VM] YetiPelisProvider.searchServers() devolvió ${servers.size} servers. Primero: ${servers.firstOrNull()?.name}",
+                    context = "PlayerViewModel.getServers"
+                )
+
+                if (servers.isEmpty()) {
+                    _state.emit(State.FailedLoadingServers(Exception("No se encontraron servers YP")))
+                } else {
+                    _state.emit(State.SuccessLoadingServers(servers))
+                }
+            } catch (e: Exception) {
+                CrashLogger.logError(
+                    tag = "YP-Player",
+                    message = "[VM] YetiPelisProvider.searchServers() FAILED: ${e.message?.take(200)}",
+                    throwable = e,
+                    context = "PlayerViewModel.getServers"
+                )
+                _state.emit(State.FailedLoadingServers(e))
+            }
             return@launch
         }
+
+        // WLFMOVIE YETI v7: Si hay servers YP pendientes (modo pre-cargado,
+        // compatibilidad con v6/v7 — ya no se usa en v8 pero se mantiene por
+        // si se invoca desde otro sitio), emitirlos directamente.
+        val ypServers = YpDirectPlay.consumePendingServers()
+        if (ypServers != null && ypServers.isNotEmpty()) {
+            CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[VM] YP direct play (modo pre-cargado): ${ypServers.size} servers pre-resueltos. Primero: ${ypServers.first().name} | src=${ypServers.first().src.take(100)}",
+                context = "PlayerViewModel.getServers"
+            )
+            _state.emit(State.SuccessLoadingServers(ypServers))
+            return@launch
+        } else if (ypServers != null) {
+            CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[VM] No hay servers YP pendientes — usando provider normal",
+                context = "PlayerViewModel.getServers"
+            )
+        }
+
+        // WLFMOVIE YETI v9: Marcar que este intento fue normal (no YP).
+        // Lo usa el overlay "sin servidores" para mostrar el botón correcto.
+        YpDirectPlay.markNormalAttempt()
+        // WLFMOVIE YETI v9: Guardar que este video se reprodujo normal.
+        YpDirectPlay.saveModeForVideo(id, false)
 
         val provider = UserPreferences.currentProvider
 
@@ -266,12 +378,30 @@ class PlayerViewModel(
 
     fun getVideo(server: Video.Server) = viewModelScope.launch(Dispatchers.IO) {
         Log.d("PlayerViewModel", "Inizio estrazione video dal server: ${server.name}")
+        CrashLogger.logError(
+            tag = "YP-Player",
+            message = "[VM] getVideo() llamado | server=${server.name} | serverId=${server.id.take(100)} | src=${server.src.take(100)}",
+            context = "PlayerViewModel.getVideo"
+        )
         _state.emit(State.LoadingVideo(server))
         try {
             val video = UserPreferences.currentProvider!!.getVideo(server)
-            if (video.source.isEmpty()) throw Exception("No source found")
+            if (video.source.isEmpty()) {
+                CrashLogger.logError(
+                    tag = "YP-Player",
+                    message = "[VM] getVideo() — source vacío después de extract()",
+                    context = "PlayerViewModel.getVideo"
+                )
+                throw Exception("No source found")
+            }
 
-            // LOGICA SOTTOTITOLI GLOBALE: 
+            CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[VM] getVideo() OK | video.source=${video.source.take(120)} | type=${video.type} | subtitles=${video.subtitles.size} | hasHeaders=${video.headers != null}",
+                context = "PlayerViewModel.getVideo"
+            )
+
+            // LOGICA SOTTOTITOLI GLOBALE:
             // Se il provider non ha già impostato un default (es. i "forced" in spagnolo),
             // allora proviamo ad attivare l'ultimo sottotitolo usato dall'utente.
             // MA: se siamo su un provider spagnolo e non ci sono forced, non dobbiamo attivare nulla.
@@ -290,6 +420,12 @@ class PlayerViewModel(
             _state.emit(State.SuccessLoadingVideo(video, server))
         } catch (e: Exception) {
             Log.e("PlayerViewModel", "Errore estrazione video: ", e)
+            CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[VM] getVideo() FAILED | server=${server.name} | error=${e.message?.take(200)}",
+                throwable = e,
+                context = "PlayerViewModel.getVideo"
+            )
             _state.emit(State.FailedLoadingVideo(e, server))
         }
     }

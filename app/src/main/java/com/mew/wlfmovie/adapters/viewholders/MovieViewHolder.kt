@@ -202,69 +202,74 @@ class MovieViewHolder(
     }
 
     /**
-     * WLFMOVIE YETI: Reproduce directamente con servers de YetiPelis.
+     * WLFMOVIE YETI v8: Reproduce con el segundo reproductor (Opción 2 = YP).
      *
-     * Llama a YetiPelisProvider.searchServers(), guarda los servers en
-     * YpDirectPlay (singleton puente) y navega al PlayerFragment.
-     * El PlayerViewModel detecta los servers pendientes y los emite directamente
-     * (sin llamar al provider), y displayVideo() usa DefaultHttpDataSource
-     * porque el toggle yetiDirectPlayer esta ON y el server empieza con "YP ".
+     * WLFMOVIE YETI v8 — Cambio de flujo: en vez de esperar en la pantalla de
+     * detalles a que searchServers() devuelva todos los servers (que tarda
+     * ~20s y el usuario ve un Toast sin feedback visual), ahora el botón
+     * navega INMEDIATAMENTE al reproductor (como el botón "Reproducir" normal)
+     * y setea el flag YpDirectPlay.requestYp(). El PlayerViewModel.getServers()
+     * detecta el flag y en vez de usar el provider actual, llama directamente
+     * a YetiPelisProvider.searchServers(). El usuario ve el spinner morado-
+     * fucsia del reproductor mientras busca — mismo UX que el botón normal.
+     *
+     * El flujo de progreso, sync a la nube, next episode, diálogos, gestures, etc.
+     * sigue funcionando idéntico al botón "Reproducir normal" — solo cambia
+     * qué provider se usa para buscar servers.
      */
     private fun playWithYeti(movie: Movie, isTv: Boolean) {
-        val lifecycleOwner = itemView.findViewTreeLifecycleOwner() ?: return
         val navController = itemView.findNavController()
 
-        Toast.makeText(context, "Buscando servers YetiPelis...", Toast.LENGTH_SHORT).show()
+        // WLFMOVIE YETI v8: log de entrada al botón YP.
+        try {
+            com.mew.wlfmovie.utils.CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[Holder] Botón Opción 2 presionado | movie=${movie.title} | id=${movie.id} | isTv=$isTv",
+                context = "MovieViewHolder.playWithYeti"
+            )
+        } catch (_: Exception) {}
 
-        lifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val servers = YetiPelisProvider.searchServers(
+        // Setear el flag YP — el PlayerViewModel.getServers() lo consume
+        // y en vez de usar el provider actual, llama a YetiPelisProvider.
+        com.mew.wlfmovie.utils.YpDirectPlay.requestYp()
+
+        // Navegar al PlayerFragment INMEDIATAMENTE (sin esperar searchServers).
+        // El usuario verá el spinner del reproductor mientras se buscan los
+        // servers — mismo UX que el botón "Reproducir" normal.
+        val videoType = Video.Type.Movie(
+            id = movie.id,
+            title = movie.title,
+            releaseDate = movie.released?.format("yyyy-MM-dd") ?: "",
+            poster = movie.poster ?: movie.banner ?: "",
+            imdbId = movie.imdbId,
+        )
+
+        try {
+            com.mew.wlfmovie.utils.CrashLogger.logError(
+                tag = "YP-Player",
+                message = "[Holder] Navegando al PlayerFragment (Opción 2 — el PlayerVM llamará a YetiPelisProvider)",
+                context = "MovieViewHolder.playWithYeti"
+            )
+        } catch (_: Exception) {}
+
+        if (isTv) {
+            navController.navigate(
+                MovieTvFragmentDirections.actionMovieToPlayer(
+                    id = movie.id,
                     title = movie.title,
-                    isMovie = true,
-                    expectTmdbId = movie.id.toIntOrNull(),
+                    subtitle = movie.released?.format("yyyy") ?: "",
+                    videoType = videoType,
                 )
-
-                withContext(Dispatchers.Main) {
-                    if (servers.isNullOrEmpty()) {
-                        Toast.makeText(context, "No se encontraron servers YP", Toast.LENGTH_SHORT).show()
-                        return@withContext
-                    }
-
-                    YpDirectPlay.setPendingServers(servers)
-
-                    val videoType = Video.Type.Movie(
-                        id = movie.id,
-                        title = movie.title,
-                        releaseDate = movie.released?.format("yyyy-MM-dd") ?: "",
-                        poster = movie.poster ?: movie.banner ?: "",
-                        imdbId = movie.imdbId,
-                    )
-
-                    if (isTv) {
-                        navController.navigate(
-                            MovieTvFragmentDirections.actionMovieToPlayer(
-                                id = movie.id,
-                                title = movie.title,
-                                subtitle = movie.released?.format("yyyy") ?: "",
-                                videoType = videoType,
-                            )
-                        )
-                    } else {
-                        navController.navigate(
-                            MovieMobileFragmentDirections.actionMovieToPlayer(
-                                id = movie.id,
-                                title = movie.title,
-                                subtitle = movie.released?.format("yyyy") ?: "",
-                                videoType = videoType,
-                            )
-                        )
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Error YP: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
+            )
+        } else {
+            navController.navigate(
+                MovieMobileFragmentDirections.actionMovieToPlayer(
+                    id = movie.id,
+                    title = movie.title,
+                    subtitle = movie.released?.format("yyyy") ?: "",
+                    videoType = videoType,
+                )
+            )
         }
     }
 
@@ -838,7 +843,14 @@ class MovieViewHolder(
             }
         }
 
-        // WLFMOVIE YETI: Botón "Reproducir con YP" — visible solo si el toggle esta ON
+        // WLFMOVIE YETI v8: Botón "Opción 2" (segundo reproductor) en películas.
+        // Visible solo si el toggle "Segundo reproductor (Opción 2)" está ON en Ajustes.
+        // Al hacer click, setea YpDirectPlay.requestYp() y navega al PlayerFragment
+        // inmediatamente (igual que el botón "Reproducir" normal). El PlayerViewModel
+        // detecta el flag y llama a YetiPelisProvider.searchServers() en vez del
+        // provider actual. Los servers YP llegan con nombre que empieza con "YP ",
+        // y displayVideo() detecta eso para usar DefaultHttpDataSource (igual que
+        // la test app).
         binding.btnMovieYp.apply {
             visibility = if (UserPreferences.yetiDirectPlayer) View.VISIBLE else View.GONE
             setOnClickListener {
@@ -1048,16 +1060,19 @@ class MovieViewHolder(
      * Actualiza el texto, el icono y el spinner del boton btn_movie_download
      * segun [currentDownloadState] y [isAnyOtherDownloadActive].
      *
+     * WLFMOVIE YETI v6: el botón ahora muestra SOLO el icono (sin texto) para
+     * que no rompa el layout. El estado detallado de la descarga se muestra
+     * en la tarjeta ll_download_progress (debajo de los botones). La FUNCIÓN
+     * del botón no cambia — sigue abriendo el diálogo de descarga/eliminar.
+     *
      * WLFMOVIE V6.3.1: cambios principales:
      *  - Recibe el [spinner] ProgressBar por separado para togglear su
      *    visibilidad (el TextView no puede animar drawables por si solo).
-     *  - Cuando ESTA pelicula se esta descargando: muestra el spinner +
-     *    "Descargando... 23.4 MB" (o "Descargando X% — 23.4 MB" si conocemos
-     *    el total — Remux lo sabe, HLS no lo sabe hasta el final).
-     *  - Cuando OTRA pelicula se esta descargando y esta esta idle: muestra
-     *    "Espera..." y deshabilita el boton (alpha 0.5).
-     *  - En Completed: muestra "Ya descargada" con check (no "Descargar").
-     *  - En Searching (entre click y dialogo): muestra "Buscando..." + spinner.
+     *  - Cuando ESTA pelicula se esta descargando: muestra el spinner.
+     *  - Cuando OTRA pelicula se esta descargando y esta esta idle: deshabilita
+     *    el boton (alpha 0.5).
+     *  - En Completed: muestra el check (no "Descargar").
+     *  - En Searching (entre click y dialogo): muestra spinner.
      */
     private fun updateDownloadButton(
         button: android.widget.TextView,
@@ -1068,58 +1083,33 @@ class MovieViewHolder(
         // currentDownloadState se setea, así que aquí leemos su valor.
         updateDownloadProgressCard()
 
+        // WLFMOVIE YETI v6: el botón siempre muestra SOLO el icono (sin texto).
+        // La información de estado ("Descargando X MB", "Ya descargada", etc.)
+        // se muestra en la tarjeta ll_download_progress (debajo de los botones).
+        // Aquí solo toggamos el drawable (icon vs check), el spinner y el alpha.
+        val iconRes = when (currentDownloadState) {
+            is DownloadProgressState.Completed -> R.drawable.wlf_ic_check
+            else -> R.drawable.wlf_ic_download
+        }
+        button.setCompoundDrawablesRelativeWithIntrinsicBounds(iconRes, 0, 0, 0)
+
         // WLFMOVIE V6.3.1: estado "Buscando…" tiene prioridad sobre el resto.
         // Se setea en startNewDownloadFlow() justo antes de lanzar la corrutina
         // de busqueda y se limpia cuando el diálogo aparece o el slow-link
         // aparece.
         if (isSearching) {
-            button.text = context.getString(R.string.download_button_searching)
             spinner.visibility = android.view.View.VISIBLE
             button.isEnabled = false
             button.alpha = 0.7f
-            button.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.wlf_ic_download, 0, 0, 0)
             return
         }
         when (currentDownloadState) {
             is DownloadProgressState.Downloading -> {
-                val state = currentDownloadState as DownloadProgressState.Downloading
-                val downloadedHuman = MovieDownloadManager.humanReadableBytes(state.downloadedBytes)
-                button.text = when {
-                    // WLFMOVIE V6.3.3: sentinel de fase de guardado — el 100%
-                    // de los segmentos ya bajó y estamos concatenando el
-                    // archivo final en disco.
-                    state.speedBps < 0L && state.totalBytes > 0L -> {
-                        val percent = (state.progress * 100).toInt().coerceIn(0, 100)
-                        context.getString(R.string.download_button_finalizing, percent)
-                    }
-                    state.totalBytes > 0L -> {
-                        val percent = (state.progress * 100).toInt().coerceIn(0, 100)
-                        context.getString(
-                            R.string.download_button_progress_full,
-                            percent,
-                            downloadedHuman,
-                        )
-                    }
-                    else -> {
-                        // HLS: no conocemos el total hasta el final. Mostrar
-                        // solo los bytes descargados + spinner.
-                        context.getString(
-                            R.string.download_button_progress_bytes,
-                            downloadedHuman,
-                        )
-                    }
-                }
                 spinner.visibility = android.view.View.VISIBLE
                 button.isEnabled = true
                 button.alpha = 1f
             }
             is DownloadProgressState.Completed -> {
-                // WLFMOVIE V6.3.1: Cambio de copy. Antes decía "Descargado",
-                // que se confundía con "Descargar" (el botón parecía seguir
-                // ofreciendo descarga). Ahora dice "Ya descargada" →
-                // el usuario entiende que no hay que descargar de nuevo.
-                // Click abre el diálogo "Eliminar descarga".
-                button.text = context.getString(R.string.download_button_completed)
                 spinner.visibility = android.view.View.GONE
                 button.isEnabled = true
                 button.alpha = 1f
@@ -1128,22 +1118,18 @@ class MovieViewHolder(
             is DownloadProgressState.Cancelled,
             is DownloadProgressState.Idle -> {
                 // WLFMOVIE V6.3.1: Si OTRA descarga esta corriendo, bloquear
-                // el boton con "Espera..." para evitar paralelas. Si no,
-                // boton normal listo para iniciar descarga.
+                // el boton para evitar paralelas. Si no, boton normal.
                 if (isAnyOtherDownloadActive) {
-                    button.text = context.getString(R.string.download_button_in_queue)
                     spinner.visibility = android.view.View.GONE
                     button.isEnabled = false
                     button.alpha = 0.5f
                 } else {
-                    button.text = context.getString(R.string.download_button)
                     spinner.visibility = android.view.View.GONE
                     button.isEnabled = true
                     button.alpha = 1f
                 }
             }
         }
-        button.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.wlf_ic_download, 0, 0, 0)
     }
 
     /**
@@ -1628,7 +1614,10 @@ class MovieViewHolder(
             }
         }
 
-        // WLFMOVIE YETI: Botón "Reproducir con YP" — visible solo si el toggle esta ON
+        // WLFMOVIE YETI v8: Botón "Opción 2" (segundo reproductor) en películas (TV).
+        // Visible solo si el toggle "Segundo reproductor (Opción 2)" está ON en Ajustes.
+        // Al hacer click, setea YpDirectPlay.requestYp() y navega al PlayerFragment
+        // inmediatamente (igual que el botón "Reproducir" normal).
         binding.btnMovieYp.apply {
             visibility = if (UserPreferences.yetiDirectPlayer) View.VISIBLE else View.GONE
             setOnClickListener {

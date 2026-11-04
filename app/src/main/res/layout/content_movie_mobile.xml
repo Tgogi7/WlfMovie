@@ -209,7 +209,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tv_movie_genres">
 
-        <!-- Botón Ver película (mantiene ID original) -->
+        <!-- Botón Ver película (mantiene ID original) — "Reproducir normal" -->
         <TextView
             android:id="@+id/btn_movie_watch_now"
             android:layout_width="wrap_content"
@@ -221,7 +221,7 @@
             android:drawableTint="@color/wlf_text_primary"
             android:focusable="true"
             android:gravity="center"
-            android:text="Ver película"
+            android:text="Reproducir"
             android:textColor="@color/wlf_text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
@@ -243,7 +243,9 @@
             android:visibility="gone"
             tools:visibility="visible" />
 
-        <!-- WLFMOVIE YETI: Botón "Reproducir con YP" — visible solo cuando el toggle esta ON -->
+        <!-- WLFMOVIE YETI v6: Botón "Reproducir con YP" (segundo reproductor).
+             Visible solo cuando el toggle "Segundo reproductor (Opción 2)" está ON.
+             Usa el mismo stack que la test app (DefaultHttpDataSource). -->
         <TextView
             android:id="@+id/btn_movie_yp"
             android:layout_width="wrap_content"
@@ -255,40 +257,37 @@
             android:gravity="center"
             android:paddingStart="20dp"
             android:paddingEnd="20dp"
-            android:text="YP"
+            android:text="🐢 YP"
             android:textColor="@color/wlf_fuchsia_neon"
             android:textSize="16sp"
             android:textStyle="bold"
             android:visibility="gone"
             tools:visibility="visible" />
 
-        <!-- WLFMOVIE Update 7: Botón Descargar (peliculas Remux) -->
-        <!-- WLFMOVIE V6.3.1: Cambio a FrameLayout para poder mostrar un spinner
-             encima del icono de descarga mientras la descarga esta activa.
-             El TextView interior mantiene el ID original btn_movie_download. -->
+        <!-- WLFMOVIE v6: Botón Descargar — solo el icono (sin texto) para que
+             no rompa el layout. Mantiene el ID original btn_movie_download para
+             que MovieViewHolder.updateDownloadButton() siga funcionando.
+             El FrameLayout permite sobreponer el spinner al drawableStart. -->
         <FrameLayout
             android:id="@+id/btn_movie_download_container"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:layout_marginStart="12dp">
 
             <TextView
                 android:id="@+id/btn_movie_download"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:background="@drawable/wlf_bg_secondary_button_details"
                 android:clickable="true"
                 android:drawableStart="@drawable/wlf_ic_download"
-                android:drawablePadding="10dp"
                 android:drawableTint="@color/wlf_text_primary"
                 android:focusable="true"
                 android:gravity="center"
-                android:text="@string/download_button"
-                android:textColor="@color/wlf_text_primary"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:contentDescription="@string/download_button"
+                android:padding="12dp" />
 
-            <!-- WLFMOVIE V6.3.1: Spinner pequeño (24dp) sobre el icono de
+            <!-- WLFMOVIE V6.3.1: Spinner pequeño (20dp) sobre el icono de
                  descarga. Se sobrepone al drawableStart del TextView via
                  FrameLayout. visibility=gone por defecto; lo gestiona
                  MovieViewHolder.updateDownloadButton(). -->
@@ -297,8 +296,7 @@
                 style="?android:attr/progressBarStyleSmall"
                 android:layout_width="20dp"
                 android:layout_height="20dp"
-                android:layout_gravity="start|center_vertical"
-                android:layout_marginStart="14dp"
+                android:layout_gravity="center"
                 android:indeterminate="true"
                 android:indeterminateTint="@color/wlf_fuchsia_neon"
                 android:indeterminateTintMode="src_in"
